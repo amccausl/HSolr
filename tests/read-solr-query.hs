@@ -10,7 +10,7 @@ play = runX (isolateDocs)
 
 play2 = runX (loadResponse)
 
-play3 = runX (isolateDocs >>> getChildren >>> getSolrField)
+play3 = runX (isolateDocs >>> processDoc)
 
 isolateDocs :: IOSArrow XmlTree XmlTree
 isolateDocs =
@@ -34,9 +34,9 @@ loadResponse =
     getChildren >>>
     putXmlTree "-"
 
-getSolrField :: IOSArrow XmlTree (String, SolrData)
-getSolrField =
-    (getAttrl >>> getChildren >>> getText) &&& getSolrData
+processDoc :: IOSArrow XmlTree SolrDoc
+processDoc = (getChildren >>> processField) >. id
+  where processField = (getAttrl >>> getChildren >>> getText) &&& getSolrData
 
 getSolrData :: IOSArrow XmlTree SolrData
 getSolrData = (filterByType "str" >>> getText >>> arr (\x -> tryUUID x))
@@ -44,11 +44,7 @@ getSolrData = (filterByType "str" >>> getText >>> arr (\x -> tryUUID x))
           <+> (filterByType "float" >>> getText >>> arr (\x -> SolrFloat (read x)))
           <+> (filterByType "date" >>> getText >>> arr (\x -> SolrDate (readTime defaultTimeLocale "%FT%TZ" x)))
           <+> (filterByType "int" >>> getText >>> arr (\x -> SolrInt (read x)))
-          -- <+> (filterByType "arr" >>> getSolrData >>. SolrArr)
-          -- <+> (filterByType "arr" >>> getSolrData >>> listA >>> arrL (\x -> SolrArr x)) -- doesn't compile
-          <+> ((filterByType "arr" >>> getSolrData) >. SolrArr) -- Wraps value in SolrArr, adds empty SolrArr's everywhere
-          -- <+> (filterByType "arr" >>> getSolrData >. SolrArr) -- Wraps value in SolrArr, but doesn't do as list
-          -- <+> (filterByType "arr" >>> getSolrData) -- Doesn't respect hierarchy
+          <+> ((isElem >>> hasName "arr") >>> (getChildren >>> getSolrData) >. SolrArr)
   where filterByType t = isElem >>> hasName t >>> getChildren
         tryUUID str = case fromString str of
             Just uuid -> SolrId uuid
