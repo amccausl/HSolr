@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response>
+
+<lst name="responseHeader">
+ <int name="status">0</int>
+ <int name="QTime">2</int>
+ <lst name="params">
+  <str name="indent">on</str>
+  <str name="start">0</str>
+  <str name="q">electronics</str>
+  <str name="version">2.2</str>
+  <str name="rows">10</str>
+ </lst>
+</lst>
+<result name="response" numFound="17" start="0">
+ <doc>
+  <arr name="cat"><str>electronics</str><str>connector</str></arr>
+  <arr name="features"><str>car power adapter, white</str></arr>
+  <str name="id">F8V7067-APL-KIT</str>
+  <bool name="inStock">false</bool>
+  <str name="manu">Belkin</str>
+  <date name="manufacturedate_dt">2005-08-01T16:30:25Z</date>
+  <str name="name">Belkin Mobile Power Cord for iPod w/ Dock</str>
+  <int name="popularity">1</int>
+  <float name="price">19.95</float>
+  <float name="weight">4.0</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>connector</str></arr>
+  <arr name="features"><str>car power adapter for iPod, white</str></arr>
+  <str name="id">IW-02</str>
+  <bool name="inStock">false</bool>
+  <str name="manu">Belkin</str>
+  <date name="manufacturedate_dt">2006-02-14T23:55:59Z</date>
+  <str name="name">iPod &amp; iPod Mini USB 2.0 Cable</str>
+  <int name="popularity">1</int>
+  <float name="price">11.5</float>
+  <float name="weight">2.0</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>memory</str></arr>
+  <str name="id">VS1GB400C3</str>
+  <bool name="inStock">true</bool>
+  <str name="manu">Corsair Microsystems Inc.</str>
+  <date name="manufacturedate_dt">2006-02-13T15:26:37Z</date>
+  <str name="name">CORSAIR ValueSelect 1GB 184-Pin DDR SDRAM Unbuffered DDR 400 (PC 3200) System Memory - Retail</str>
+  <int name="popularity">7</int>
+  <float name="price">74.99</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>memory</str></arr>
+  <str name="id">VS1GB400C3-payload</str>
+  <bool name="inStock">true</bool>
+  <str name="manu">Corsair Microsystems Inc.</str>
+  <str name="name">CORSAIR ValueSelect 1GB 184-Pin DDR SDRAM Unbuffered DDR 400 (PC 3200) System Memory - Retail</str>
+  <str name="payloads">electronics|4.0 memory|2.0</str>
+  <int name="popularity">7</int>
+  <float name="price">74.99</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>hard drive</str></arr>
+  <arr name="features"><str>7200RPM, 8MB cache, IDE Ultra ATA-133</str><str>NoiseGuard, SilentSeek technology, Fluid Dynamic Bearing (FDB) motor</str></arr>
+  <str name="id">SP2514N</str>
+  <bool name="inStock">true</bool>
+  <str name="manu">Samsung Electronics Co. Ltd.</str>
+  <date name="manufacturedate_dt">2006-02-13T15:26:37Z</date>
+  <str name="name">Samsung SpinPoint P120 SP2514N - hard drive - 250 GB - ATA-133</str>
+  <int name="popularity">6</int>
+  <float name="price">92.0</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>hard drive</str></arr>
+  <arr name="features"><str>SATA 3.0Gb/s, NCQ</str><str>8.5ms seek</str><str>16MB cache</str></arr>
+  <str name="id">6H500F0</str>
+  <bool name="inStock">true</bool>
+  <str name="manu">Maxtor Corp.</str>
+  <date name="manufacturedate_dt">2006-02-13T15:26:37Z</date>
+  <str name="name">Maxtor DiamondMax 11 - hard drive - 500 GB - SATA-300</str>
+  <int name="popularity">6</int>
+  <float name="price">350.0</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>memory</str></arr>
+  <arr name="features"><str>CAS latency 3,	 2.7v</str></arr>
+  <str name="id">VDBDB1A16</str>
+  <bool name="inStock">true</bool>
+  <str name="manu">A-DATA Technology Inc.</str>
+  <date name="manufacturedate_dt">2006-02-13T15:26:37Z</date>
+  <str name="name">A-DATA V-Series 1GB 184-Pin DDR SDRAM Unbuffered DDR 400 (PC 3200) System Memory - OEM</str>
+  <int name="popularity">0</int>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>monitor</str></arr>
+  <arr name="features"><str>19" TFT active matrix LCD, 8ms response time, 1280 x 1024 native resolution</str></arr>
+  <str name="id">VA902B</str>
+  <bool name="inStock">true</bool>
+  <str name="manu">ViewSonic Corp.</str>
+  <str name="name">ViewSonic VA902B - flat panel display - TFT - 19"</str>
+  <int name="popularity">6</int>
+  <float name="price">279.95</float>
+  <float name="weight">190.4</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>monitor</str></arr>
+  <arr name="features"><str>30" TFT active matrix LCD, 2560 x 1600, .25mm dot pitch, 700:1 contrast</str></arr>
+  <str name="id">3007WFP</str>
+  <bool name="inStock">true</bool>
+  <str name="includes">USB cable</str>
+  <str name="manu">Dell, Inc.</str>
+  <str name="name">Dell Widescreen UltraSharp 3007WFP</str>
+  <int name="popularity">6</int>
+  <float name="price">2199.0</float>
+  <float name="weight">401.6</float>
+ </doc>
+ <doc>
+  <arr name="cat"><str>electronics</str><str>memory</str></arr>
+  <arr name="features"><str>CAS latency 3,	 2.7v</str></arr>
+  <str name="id">VDBDB1A16-payload</str>
+  <bool name="inStock">true</bool>
+  <str name="manu">A-DATA Technology Inc.</str>
+  <str name="name">A-DATA V-Series 1GB 184-Pin DDR SDRAM Unbuffered DDR 400 (PC 3200) System Memory - OEM</str>
+  <str name="payloads">electronics|0.9 memory|0.1</str>
+  <int name="popularity">5</int>
+ </doc>
+</result>
+</response>
