@@ -39,13 +39,13 @@ processDoc = (getChildren >>> processField) >. id
   where processField = (getAttrl >>> getChildren >>> getText) &&& getSolrData
 
 getSolrData :: IOSArrow XmlTree SolrData
-getSolrData = (filterByType "str" >>> getText >>> arr (\x -> tryUUID x))
-          <+> (filterByType "bool" >>> getText >>> arr (\x -> SolrBool (x == "true")))
-          <+> (filterByType "float" >>> getText >>> arr (\x -> SolrFloat (read x)))
-          <+> (filterByType "date" >>> getText >>> arr (\x -> SolrDate (readTime defaultTimeLocale "%FT%TZ" x)))
-          <+> (filterByType "int" >>> getText >>> arr (\x -> SolrInt (read x)))
+getSolrData = processType "str" (\x -> tryUUID x)
+          <+> processType "bool" (\x -> SolrBool (x == "true"))
+          <+> processType "float" (\x -> SolrFloat (read x))
+          <+> processType "date" (\x -> SolrDate (readTime defaultTimeLocale "%FT%TZ" x))
+          <+> processType "int" (\x -> SolrInt (read x))
           <+> ((isElem >>> hasName "arr") >>> (getChildren >>> getSolrData) >. SolrArr)
-  where filterByType t = isElem >>> hasName t >>> getChildren
+  where processType t f = isElem >>> hasName t >>> getChildren >>> getText >>> arr f
         tryUUID str = case fromString str of
             Just uuid -> SolrId uuid
             Nothing -> SolrStr str
