@@ -6,33 +6,17 @@ import Data.Time
 import Data.UUID
 import Locale
 
-play = runX (isolateDocs)
+play = runX (readDocument [(a_validate,"0")] "testQuery.xml" >>> getDocs)
 
-play2 = runX (loadResponse)
-
-play3 = runX (isolateDocs >>> processDoc)
-
-isolateDocs :: IOSArrow XmlTree XmlTree
-isolateDocs =
-    readDocument [(a_validate,"0")] "testQuery.xml" >>>
+getDocs :: IOSArrow XmlTree SolrDoc
+getDocs =
     getChildren >>>
     isElem >>> hasName "response" >>>
     getChildren >>>
     isElem >>> hasName "result" >>>
     getChildren >>>
-    isElem >>> hasName "doc" 
---    >>> putXmlTree "-" >>>
---    getChildren >>> getSolrField
-
-loadResponse :: IOSArrow XmlTree XmlTree
-loadResponse =
-    readDocument [(a_validate,"0")] "testQuery.xml" >>>
-    getChildren >>>
-    isElem >>> hasName "response" >>>
-    getChildren >>>
-    isElem >>> hasName "lst" >>>
-    getChildren >>>
-    putXmlTree "-"
+    isElem >>> hasName "doc" >>>
+    processDoc
 
 processDoc :: IOSArrow XmlTree SolrDoc
 processDoc = (getChildren >>> processField) >. id
@@ -50,5 +34,3 @@ getSolrData = processType "str" (\x -> tryUUID x)
             Just uuid -> SolrId uuid
             Nothing -> SolrStr str
 
--- Doesn't collapse arrays
--- Doesn't split Docs
