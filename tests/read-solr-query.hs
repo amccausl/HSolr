@@ -6,23 +6,26 @@ import Data.Time
 import Data.UUID
 import Locale
 
-play = runX (readDocument [(a_validate,"0")] "testQuery.xml" >>> getDocs)
+play = runX (readDocument [(a_validate,"0")] "testQuery.xml" >>> (findResponse >>> getDocs))
 
-getDocs :: IOSArrow XmlTree SolrDoc
-getDocs =
-    getChildren >>>
-    isElem >>> hasName "response" >>>
-    getChildren >>>
+play2 = do
+    xml <- readFile "testQuery.xml"
+    print (runLA (xread >>> getDocs) (dropWhile (/= '\n') xml))
+
+findResponse = getChildren >>> isElem >>> hasName "response"
+
+getDocs :: (ArrowXml a) => a XmlTree SolrDoc
+getDocs = getChildren >>>
     isElem >>> hasName "result" >>>
     getChildren >>>
     isElem >>> hasName "doc" >>>
     processDoc
 
-processDoc :: IOSArrow XmlTree SolrDoc
+processDoc :: (ArrowXml a) => a XmlTree SolrDoc
 processDoc = (getChildren >>> processField) >. id
   where processField = (getAttrl >>> getChildren >>> getText) &&& getSolrData
 
-getSolrData :: IOSArrow XmlTree SolrData
+getSolrData :: (ArrowXml a) => a XmlTree SolrData
 getSolrData = processType "str" (\x -> tryUUID x)
           <+> processType "bool" (\x -> SolrBool (x == "true"))
           <+> processType "float" (\x -> SolrFloat (read x))
