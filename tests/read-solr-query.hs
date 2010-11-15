@@ -1,12 +1,13 @@
 
-import Text.XML.HXT.Arrow
+import Text.XML.HXT.Core
+import Text.XML.HXT.Arrow.XmlState.SystemConfig
 import Control.Arrow.ArrowList
 import Network.Search.Solr.Data
 import Data.Time
 import Data.UUID
 import Locale
 
-play = runX (readDocument [(a_validate,"0")] "testQuery.xml" >>> (findResponse >>> getDocs))
+play = runX (readDocument [] "testQuery.xml" >>> (findResponse >>> getDocs))
 
 play2 = do
     xml <- readFile "testQuery.xml"
