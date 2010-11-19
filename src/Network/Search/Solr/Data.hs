@@ -26,11 +26,11 @@ data SolrData = SolrId UUID
   deriving (Eq)
 
 instance Show SolrData where
+  show (SolrStr value) = value
   show (SolrId value) = show value
   show (SolrInt value) = show value
   show (SolrFloat value) = show value
   show (SolrBool value) = show value
-  show (SolrStr value) = show value
   show (SolrDate value) = show value
   show (SolrArr value) = show value
 
