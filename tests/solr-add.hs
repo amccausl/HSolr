@@ -1,7 +1,8 @@
 
+import Text.XML.HXT.Arrow.XmlArrow
 import Text.XML.HXT.Arrow.XmlState.SystemConfig
 import Text.XML.HXT.Core
-import qualified Text.XML.HXT.DOM.TypeDefs
+import Text.XML.HXT.DOM.TypeDefs
 import Data.Tree.Class
 import Data.Tree.NTree.TypeDefs
 import Control.Arrow.ArrowList
@@ -38,11 +39,13 @@ testDocMem = [ ("id", SolrStr "TWINX2048-3200PRO")
              , ("manufacturedate_dt", SolrStr "2006-02-13T15:26:37Z") -- Should be date, check constructors
              ]
 
+wrapInTag tag = arr (NTree (XTag (mkName tag) []))
+
 mkAddDocs :: ArrowXml a => a [SolrDoc] XmlTree
-mkAddDocs = (arrL id >>> mkDocs) >. arr (NTree (XTag (mkName "add") []))
+mkAddDocs = (arrL id >>> mkDocs) >. wrapInTag "add"
 
 mkDocs :: ArrowXml a => a SolrDoc XmlTree
-mkDocs = (arrL id >>> mkSolrData) >. arr (NTree (XTag (mkName "doc") []))
+mkDocs = (arrL id >>> mkSolrData) >. wrapInTag "doc"
 
 mkSolrData :: ArrowXml a => a (String, SolrData) XmlTree
 mkSolrData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper]
@@ -51,5 +54,5 @@ mkSolrData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper]
 
 play = runX (readDocument [] "mem.xml" >>> Text.XML.HXT.Core.getChildren >>> putXmlTree "-")
 
-play2 = runX (constA [testDocMem, testDocMem] >>> mkAddDocs >>> putXmlTree "-" >>> writeDocument [withIndent yes] "hello.xml")
+play2 = runX (xshow (constA [testDocMem, testDocMem] >>> mkAddDocs >>> putXmlTree "-"))
 
