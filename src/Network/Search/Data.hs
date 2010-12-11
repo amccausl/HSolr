@@ -9,22 +9,17 @@ module Network.Search.Data
 import Data.UUID
 import Data.Time
 
--- TODO: implement "Searcher" typeclass
--- runQuery :: [SearchParameter] -> IO( SearchResult )
--- 
-
--- class Searcher t
---   runSearch :: SearchQuery -> IO(SearchResult t)
---   
+class Searcher t a where
+  runQuery :: t -> SearchQuery -> IO(SearchResult a)
 
 type FieldName = String
 type FieldValue = SearchData
+type SearchQuery = [SearchParameter]
 
-data SearchParameter = SortParameter FieldName Bool
+data SearchParameter = SortParameter [(FieldName, Bool)]
                      | GroupField FieldName
                      | PagingFilter Int Int
-                     | FacetFilter FieldName FieldValue
-                     | FieldSearch FieldName FieldValue
+                     | FacetFilter SearchFacet
                      | Keyword String
 
 data SearchFacet = RangeFacet FieldName FieldValue FieldValue
@@ -52,6 +47,7 @@ type SearchDoc = [(String, SearchData)]
 
 data SearchResult = SearchResult t { resultName :: String
                                    , resultCount :: Int
+                                   , resultFacets :: (Num n) => [(SearchFacet, n)]
                                    , resultScore :: Float
                                    , resultDocs :: [SearchDoc]
                                    , result :: [t]

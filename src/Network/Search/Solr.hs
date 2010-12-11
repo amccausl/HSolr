@@ -12,7 +12,7 @@ module Network.Search.Solr
        ) where
 
 -- Import data types
-import Network.Search.Solr.Data
+import Network.Search.Data
 import Data.UUID
 
 -- Import Networking modules

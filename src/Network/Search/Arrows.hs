@@ -8,12 +8,13 @@
    Stability  : experimental
    Portability: portable
 
-   Define some basic arrows to generating and filtering search queries
+   Define some basic arrows for generating and filtering searches.
 
-   Each arrow has a form that can be used pre and post query, so that
-   you can change the order of operations for performance, without
-   changing the outcome.  Note that this is not always possible and will
-   require that all fields are available from the solr index.
+   Each arrow in the ArrowedSearch typeclass has a form that can be used
+   pre and post query, so that you can change the order of operations for
+   performance, without changing the outcome.  Note that this is not
+   always possible and will require that all fields are available from
+   the solr index.
 -}
 
 -- ------------------------------------------------------------
@@ -44,7 +45,7 @@ import Control.Arrow
 
 class ArrowedSearch t where
   -- | hasKeyword value
-  hasKeyword :: String a t t
+  hasKeyword :: String -> a t t
   -- | hasFacet searchFacet (facet is either field value or range)
   hasFacet :: SearchFacet -> a t t
   -- | sortByAsc field
@@ -73,16 +74,18 @@ hasValue :: FieldName -> (FieldValue -> Bool) -> a SearchResult SearchResult
 
 -- Arrows to fetch results from a search service (should be done with a type class that is implemented in the solr module)
 
--- TODO: done by lifting the "runSearch" implementation of the given "Searcher" type
+-- TODO: done by lifting the "runQuery" implementation of the given "Searcher" type
 -- | solrFetch (IO)
-fetch :: a SearchQuery SearchResults
+fetch :: (Searcher s a) => s -> IOStateArrow SearchQuery (SearchResults a)
+fetch searcher = arr (runQuery searcher)
 -- | solrFetchD (IO)
 -- Run solr fetch with debugging information present
 -- | solrFetchL (IO, returns lazy list of results)
 -- Run solr fetch to return lazy list of results
 
-
 -- Instance of SearchArrow for SearchQuery
 instance ArrowedSearch SearchQuery where
+  hasKeyword keyword = arr (++ (Keyword keyword))
+  hasFacet facet = arr (++ (facet))
 
 -- Instance of SearchArrow for SearchResult
