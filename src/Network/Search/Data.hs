@@ -1,6 +1,11 @@
 
 module Network.Search.Data
-       ( SearchParameter(..)
+       ( Searcher(..)
+       , SearchParameter(..)
+       , SearchFacet(..)
+       , SearchQuery
+       , FieldName
+       , FieldValue
        , SearchData(..)
        , SearchDoc(..)
        , SearchResult(..)
@@ -24,6 +29,7 @@ data SearchParameter = SortParameter [(FieldName, Bool)]
 
 data SearchFacet = RangeFacet FieldName FieldValue FieldValue
                  | ValueFacet FieldName FieldValue
+  deriving (Eq, Show)
 
 data SearchData = SearchId UUID
                 | SearchInt Int
@@ -45,9 +51,9 @@ instance Show SearchData where
 
 type SearchDoc = [(String, SearchData)]
 
-data SearchResult = SearchResult t { resultName :: String
-                                   , resultCount :: Int
-                                   , resultFacets :: (Num n) => [(SearchFacet, n)]
+data SearchResult t = SearchResult { resultName :: String
+                                   , resultCount :: Integer
+                                   , resultFacets :: [(SearchFacet, Integer)]
                                    , resultScore :: Float
                                    , resultDocs :: [SearchDoc]
                                    , result :: [t]

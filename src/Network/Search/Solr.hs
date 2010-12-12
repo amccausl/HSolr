@@ -21,7 +21,7 @@ import Network.TCP as TCP
 import Network.HTTP
 
 -- Import XML manipulation
-import Text.XML.HXT.Arrow
+import Text.XML.HXT.Core
 
 -- Constants
 requestSize = 100  -- Do operations in groups of 100
