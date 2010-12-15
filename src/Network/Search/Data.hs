@@ -14,8 +14,12 @@ module Network.Search.Data
 import Data.UUID
 import Data.Time
 
-class Searcher t a where
-  runQuery :: t -> SearchQuery -> IO(SearchResult a)
+class Searcher t where
+  query :: t -> SearchQuery -> IO(SearchResult)
+
+class Searchable t where
+  toSearchDoc :: t -> SearchDoc
+  fromSearchDoc :: SearchDoc -> Maybe t
 
 type FieldName = String
 type FieldValue = SearchData
@@ -51,12 +55,9 @@ instance Show SearchData where
 
 type SearchDoc = [(String, SearchData)]
 
-data SearchResult t = SearchResult { resultName :: String
-                                   , resultCount :: Integer
-                                   , resultFacets :: [(SearchFacet, Integer)]
-                                   , resultScore :: Float
-                                   , resultDocs :: [SearchDoc]
-                                   , result :: [t]
-                                   }
+data SearchResult = SearchResult { resultDocs :: [SearchDoc]
+                                 , resultCount :: Integer --(Num n) => n
+                                 , resultFacets :: [(SearchFacet, Integer)] --(Num n) => [(SearchFacet, n)]
+                                 }
   deriving (Eq, Show)
 
