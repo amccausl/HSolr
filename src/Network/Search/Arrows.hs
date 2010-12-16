@@ -23,10 +23,7 @@ module Network.Search.Arrows
        ( hasKeyword
        , hasFacet
        , hasValue
-       , sortByAsc
-       , sortByDesc
-       , sortByAscC
-       , sortbyDescC
+       , sortBy
        , groupBy
        , paging
        ) where
@@ -34,11 +31,14 @@ module Network.Search.Arrows
 import Network.Search.Data
        ( FieldName
        , FieldValue
+       , SortOrder
+       , SearchQuery
        , SearchParameter(..)
        , SearchFacet(..)
        , SearchData(..)
        , SearchDoc
        , SearchResult(..)
+       , Searcher
        )
 
 import Control.Arrow
@@ -48,14 +48,8 @@ class ArrowedSearch t where
   hasKeyword :: String -> a t t
   -- | hasFacet searchFacet (facet is either field value or range)
   hasFacet :: SearchFacet -> a t t
-  -- | sortByAsc field
-  sortByAsc :: FieldName -> a t t
-  -- | sortByDesc field
-  sortByDesc :: FieldName -> a t t
-  -- | sortByAscC field (composable, through use of the list arrow)
-  sortByAscC :: FieldName -> a t t
-  -- | sortByDescC field (composable, through use of the list arrow)
-  sortByDescC :: FieldName -> a t t
+  -- | sortBy field
+  sortBy :: [(FieldName, SortOrder)] -> a t t
   -- | groupBy field
   groupBy :: FieldName -> a t t
   -- | pagingFilter perPage numPage
@@ -64,20 +58,26 @@ class ArrowedSearch t where
   topN :: Int -> a t t
   topN n = paging n 1
 
--- Arrows to change queries
-addFacetStat :: SearchFacet -> a SearchQuery SearchQuery
-
--- Arrows to filter results
-facetStat :: (Num n) => SearchFacet -> a SearchResult n
+  -- Arrows to change queries
+  facetStat :: SearchFacet -> a t t
 
 hasValue :: FieldName -> (FieldValue -> Bool) -> a SearchResult SearchResult
+hasValue field test = arr (hasValue' field test)
+
+hasValue' :: FieldName -> (FieldValue -> Bool) -> SearchResult -> SearchResult
+hasValue' field test input = SearchResult { resultDocs = docs
+                                          , resultCount = length docs
+                                          , resultFacets = []
+                                          , resultRefinements = resultRefinements input
+                                          }
+ where docs = filter (test . (getFieldValue field)) (resultDocs input)
 
 -- Arrows to fetch results from a search service (should be done with a type class that is implemented in the solr module)
 
 -- TODO: done by lifting the "runQuery" implementation of the given "Searcher" type
 -- | solrFetch (IO)
-fetch :: (Searcher s a) => s -> IOStateArrow SearchQuery (SearchResults a)
-fetch searcher = arr (runQuery searcher)
+fetch :: (Searcher s) => s -> IOStateArrow SearchQuery SearchResult
+fetch searcher = arr (query searcher)
 -- | solrFetchD (IO)
 -- Run solr fetch with debugging information present
 -- | solrFetchL (IO, returns lazy list of results)
@@ -86,6 +86,11 @@ fetch searcher = arr (runQuery searcher)
 -- Instance of SearchArrow for SearchQuery
 instance ArrowedSearch SearchQuery where
   hasKeyword keyword = arr (++ (Keyword keyword))
-  hasFacet facet = arr (++ (facet))
+  hasFacet facet = arr (++ (FacetFilter facet))
+  sortBy fields = arr (++ (SortParameter fields))
+  groupBy field = arr (++ (GroupBy [field]))
+  paging perPage numPage = arr (++ (PagingFilter perPage numPage))
+
+  facetStat facet = arr (++ (FacetStat facet))
 
 -- Instance of SearchArrow for SearchResult

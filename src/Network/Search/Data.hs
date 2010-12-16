@@ -6,6 +6,7 @@ module Network.Search.Data
        , SearchQuery
        , FieldName
        , FieldValue
+       , SortOrder
        , SearchData(..)
        , SearchDoc(..)
        , SearchResult(..)
@@ -25,11 +26,16 @@ type FieldName = String
 type FieldValue = SearchData
 type SearchQuery = [SearchParameter]
 
-data SearchParameter = SortParameter [(FieldName, Bool)]
-                     | GroupField FieldName
-                     | PagingFilter Int Int
+data SortOrder = Asc | Desc
+  deriving (Eq, Show)
+
+data SearchParameter = SortParameter [(FieldName, SortOrder)]
+                     | GroupBy [FieldName]
+                     | PagingFilter Int Int -- perPage, numPage
                      | FacetFilter SearchFacet
                      | Keyword String
+                     | FacetStat SearchFacet
+  deriving (Eq, Show)
 
 data SearchFacet = RangeFacet FieldName FieldValue FieldValue
                  | ValueFacet FieldName FieldValue
