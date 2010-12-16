@@ -24,7 +24,7 @@ getDocs = getChildren >>>
 
 processDoc :: (ArrowXml a) => a XmlTree SearchDoc
 processDoc = (getChildren >>> processField) >. id
-  where processField = (getAttrl >>> getChildren >>> getText) &&& getSearchData
+  where processField = (getAttrl >>> getChildren >>> getText) &&& getSolrData
 
 getSolrData :: (ArrowXml a) => a XmlTree SearchData
 getSolrData = processType "str" (\x -> tryUUID x)
