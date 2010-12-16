@@ -1,4 +1,11 @@
-{-# LANGUAGE Arrows, NoMonomorphismRestriction #-}
+\usepackage{fancyvrb}
+\DefineVerbatimEnvironment{code}{Verbatim}{fontsize=\small}
+\DefineVerbatimEnvironment{example}{Verbatim}{fontsize=\small}
+\newcommand{\ignore}[1]{}
+
+
+\begin{code}
+
 module Network.Search.Solr
        ( SolrInstance(..)
        , query
@@ -30,10 +37,9 @@ import Data.Tree.NTree.TypeDefs (NTree(..))
 requestSize = 100  -- Do operations in groups of 100
 
 -- Define datatype to represent a Solr server
-data SolrInstance =
-   SolrInstance { solrHost :: String
-                , solrPort :: Int
-                }
+data SolrInstance = SolrInstance { solrHost :: String
+                                 , solrPort :: Int
+                                 }
 
 instance Searcher SolrInstance where
   query solr q = do
@@ -51,6 +57,7 @@ parseSolrResult :: String -> SearchResult
 parseSolrResult responseStr = SearchResult { resultDocs = runLA (xread >>> getDocs) (dropWhile (/= '\n') responseStr) :: [SearchDoc]
                                            , resultCount = 0 :: (Num n) => n
                                            , resultFacets = [] :: (Num n) => [(SearchFacet, n)]
+                                           , resultRefinements = [] :: [SearchParameter]
                                            }
 
 findResponse = getChildren >>> isElem >>> hasName "response"
@@ -146,7 +153,7 @@ sendQueryRequest solr msg = do
   where req = mkQueryRequest solr msg
 
 
---solrRequest :: SolrInstance a -> String -> Request
+mkUpdateRequest :: SolrInstance -> String -> Request
 mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
                                    , rqMethod = POST :: RequestMethod
                                    , rqHeaders = [ Header HdrContentType   "text/xml; charset=utf-8"
@@ -155,10 +162,11 @@ mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
                                    , rqBody = msg
                                    }
 
---solrRequest :: SolrInstance a -> String -> Request
+mkQueryRequest :: SolrInstance -> String -> Request
 mkQueryRequest solr queryStr = Request { rqURI = queryURI solr queryStr :: URI
                                        , rqMethod = GET :: RequestMethod
                                        , rqHeaders = [] :: [Header]
                                        , rqBody = ""
                                        }
 
+\end{code}

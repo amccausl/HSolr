@@ -56,8 +56,9 @@ instance Show SearchData where
 type SearchDoc = [(String, SearchData)]
 
 data SearchResult = SearchResult { resultDocs :: [SearchDoc]
-                                 , resultCount :: Integer --(Num n) => n
-                                 , resultFacets :: [(SearchFacet, Integer)] --(Num n) => [(SearchFacet, n)]
+                                 , resultCount :: Integer
+                                 , resultFacets :: [(SearchFacet, Integer)]
+                                 , resultRefinements :: [SearchParameter]
                                  }
   deriving (Eq, Show)
 
