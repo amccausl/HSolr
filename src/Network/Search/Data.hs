@@ -3,6 +3,7 @@ module Network.Search.Data
        ( Searcher(..)
        , SearchParameter(..)
        , SearchFacet(..)
+       , getFacetField
        , SearchQuery
        , FieldName
        , FieldValue
@@ -10,6 +11,9 @@ module Network.Search.Data
        , SearchData(..)
        , SearchDoc(..)
        , SearchResult(..)
+       , getFieldValue
+       , getFieldValues
+       , matchesFacet
        ) where
 
 import Data.UUID
@@ -41,6 +45,10 @@ data SearchFacet = RangeFacet FieldName FieldValue FieldValue
                  | ValueFacet FieldName FieldValue
   deriving (Eq, Show)
 
+getFacetField :: SearchFacet -> FieldName
+getFacetField (RangeFacet field _ _) = field
+getFacetField (ValueFacet field _) = field
+
 data SearchData = SearchId UUID
                 | SearchInt Int
                 | SearchFloat Float
@@ -48,7 +56,7 @@ data SearchData = SearchId UUID
                 | SearchStr String
                 | SearchDate UTCTime
                 | SearchArr [SearchData]
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 instance Show SearchData where
   show (SearchStr value) = value
@@ -60,6 +68,22 @@ instance Show SearchData where
   show (SearchArr value) = show value
 
 type SearchDoc = [(String, SearchData)]
+
+getFieldValue :: FieldName -> SearchDoc -> Maybe SearchData
+getFieldValue _ [] = Nothing
+getFieldValue targetName ((name, value):rest) | name == targetName = Just value
+getFieldValue targetName ((name, value):rest) | name /= targetName = getFieldValue targetName rest
+
+getFieldValues :: FieldName -> SearchDoc -> [SearchData]
+getFieldValues _  [] = []
+getFieldValues targetName ((name, value):rest) | name == targetName = value : (getFieldValues targetName rest)
+getFieldValues targetName ((name, value):rest) | name /= targetName = getFieldValues targetName rest
+
+matchesFacet :: SearchFacet -> SearchDoc -> Bool
+matchesFacet _ [] = False
+matchesFacet (RangeFacet fName lower upper) ((name, value):rest) | name == fName, lower <= value, value <= upper = True
+matchesFacet (ValueFacet fName fValue) ((name, value):rest) | name == fName, value == fValue = True
+matchesFacet facet (_:rest) = matchesFacet facet rest
 
 data SearchResult = SearchResult { resultDocs :: [SearchDoc]
                                  , resultCount :: Integer

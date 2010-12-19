@@ -35,49 +35,53 @@ import Network.Search.Data
        , SearchQuery
        , SearchParameter(..)
        , SearchFacet(..)
+       , getFacetField
        , SearchData(..)
        , SearchDoc
        , SearchResult(..)
-       , Searcher
+       , Searcher(..)
+       , getFieldValue
+       , getFieldValues
+       , matchesFacet
        )
 
 import Control.Arrow
+import Control.Arrow.ArrowIO
 
 class ArrowedSearch t where
   -- | hasKeyword value
-  hasKeyword :: String -> a t t
+  hasKeyword :: (Arrow a) => String -> a t t
   -- | hasFacet searchFacet (facet is either field value or range)
-  hasFacet :: SearchFacet -> a t t
+  hasFacet :: (Arrow a) => SearchFacet -> a t t
   -- | sortBy field
-  sortBy :: [(FieldName, SortOrder)] -> a t t
+  sortBy :: (Arrow a) => [(FieldName, SortOrder)] -> a t t
   -- | groupBy field
-  groupBy :: FieldName -> a t t
+  groupBy :: (Arrow a) => [FieldName] -> a t t
   -- | pagingFilter perPage numPage
-  paging :: Int -> Int -> a t t
+  paging :: (Arrow a) => Int -> Int -> a t t
   -- | topN n
-  topN :: Int -> a t t
+  topN :: (Arrow a) => Int -> a t t
   topN n = paging n 1
 
   -- Arrows to change queries
-  facetStat :: SearchFacet -> a t t
+  facetStat :: (Arrow a) => SearchFacet -> a t t
 
-hasValue :: FieldName -> (FieldValue -> Bool) -> a SearchResult SearchResult
+hasValue :: (Arrow a) => FieldName -> (FieldValue -> Bool) -> a SearchResult SearchResult
 hasValue field test = arr (hasValue' field test)
 
 hasValue' :: FieldName -> (FieldValue -> Bool) -> SearchResult -> SearchResult
 hasValue' field test input = SearchResult { resultDocs = docs
-                                          , resultCount = length docs
+                                          , resultCount = fromIntegral (length docs)
                                           , resultFacets = []
                                           , resultRefinements = resultRefinements input
                                           }
- where docs = filter (test . (getFieldValue field)) (resultDocs input)
+ where docs = filter (\doc -> or (map (test) (getFieldValues field doc))) (resultDocs input)
 
 -- Arrows to fetch results from a search service (should be done with a type class that is implemented in the solr module)
 
--- TODO: done by lifting the "runQuery" implementation of the given "Searcher" type
 -- | solrFetch (IO)
-fetch :: (Searcher s) => s -> IOStateArrow SearchQuery SearchResult
-fetch searcher = arr (query searcher)
+fetch :: (ArrowIO a, Searcher s) => s -> a SearchQuery SearchResult
+fetch searcher = arrIO (query searcher)
 -- | solrFetchD (IO)
 -- Run solr fetch with debugging information present
 -- | solrFetchL (IO, returns lazy list of results)
@@ -85,12 +89,31 @@ fetch searcher = arr (query searcher)
 
 -- Instance of SearchArrow for SearchQuery
 instance ArrowedSearch SearchQuery where
-  hasKeyword keyword = arr (++ (Keyword keyword))
-  hasFacet facet = arr (++ (FacetFilter facet))
-  sortBy fields = arr (++ (SortParameter fields))
-  groupBy field = arr (++ (GroupBy [field]))
-  paging perPage numPage = arr (++ (PagingFilter perPage numPage))
+  hasKeyword keyword = arr (++ [Keyword keyword])
+  hasFacet facet = arr (++ [FacetFilter facet])
+  sortBy fields = arr (++ [SortParameter fields])
+  groupBy fields = arr (++ [GroupBy fields])
+  paging perPage numPage = arr (++ [PagingFilter perPage numPage])
 
-  facetStat facet = arr (++ (FacetStat facet))
+  facetStat facet = arr (++ [FacetStat facet])
 
 -- Instance of SearchArrow for SearchResult
+instance ArrowedSearch SearchResult where
+  hasKeyword keyword = arr id
+  hasFacet facet = arr (hasFacet' facet)
+  sortBy fields = arr id
+  groupBy fields = arr id
+  paging perPage numPage = arr id
+  facetStat facet = arr id
+
+hasFacet' :: SearchFacet -> SearchResult -> SearchResult
+hasFacet' facet searchResult = SearchResult { resultDocs = results
+                                            , resultCount = fromIntegral (length results)
+                                            , resultFacets = []
+                                            , resultRefinements = resultRefinements searchResult ++ [FacetFilter facet]
+                                            }
+  where results = filter (\doc -> matchesFacet facet doc) (resultDocs searchResult)
+
+hasFacet'' :: SearchFacet -> FieldValue -> Bool
+hasFacet'' (RangeFacet _ lower upper) value = value >= lower && value <= upper
+hasFacet'' (ValueFacet _ targetValue) value = value == targetValue

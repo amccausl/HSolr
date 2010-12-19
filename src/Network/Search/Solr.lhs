@@ -85,10 +85,9 @@ getSolrData = processType "str" (\x -> tryUUID x)
             Just uuid -> SearchId uuid
             Nothing -> SearchStr str
 
--- TODO: update add to use SearchDoc types rather then typeclass
---add :: SolrInstance -> [SearchDoc] -> IO (String)
---add solr docs = sendUpdateRequest solr addXml
---  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
+add :: SolrInstance -> [SearchDoc] -> IO (String)
+add solr docs = sendUpdateRequest solr addXml
+  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
 
 --update :: SolrInstance -> [SearchDoc] -> IO (String)
 --update = add

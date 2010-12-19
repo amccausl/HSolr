@@ -37,7 +37,7 @@ Library
   Exposed-modules:     Network.Search.Solr, Network.Search.Data, Network.Search.Arrows
   Build-depends:       hxt >= 9.0.0 && < 9.1.
   ghc-options:         -Wall
-  extensions:          MultiParamTypeClasses
+  extensions:          MultiParamTypeClasses, TypeSynonymInstances, PatternGuards
 
   -- Modules not exported by this package.
   -- Other-modules:       
