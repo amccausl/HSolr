@@ -9,12 +9,14 @@
 module Network.Search.Solr
        ( SolrInstance(..)
        , query
---       , add
---       , update
+       , add
+       , update
 --       , deleteByQuery
        , deleteByID
        , commit
        , optimize
+--       , mkQueryString -- Export for testing purposes.  This should not be used.
+       , toQueryMap
        ) where
 
 -- Import data types
@@ -22,10 +24,12 @@ import Network.Search.Data
 import Data.UUID
 import Data.Time
 import Locale
+import qualified Data.Map as Map
+import Data.Char (toLower)
 import List (intersperse)
 
 -- Import Networking modules
-import Network.URI (URI (..), URIAuth(..), parseURI, uriScheme, uriPath, uriQuery, uriFragment)
+import Network.URI (URI(..), URIAuth(..), parseURI, uriScheme, uriPath, uriQuery, uriFragment, escapeURIString, isUnescapedInURI)
 import Network.TCP as TCP
 import Network.HTTP
 
@@ -45,6 +49,15 @@ instance Searcher SolrInstance where
   query solr q = do
                  responseStr <- sendQueryRequest solr (queryStr q)
                  return (parseSolrResult responseStr)
+
+--mkQuery :: SolrInstance -> [SearchParameter] -> URI
+--mkQuery solr p = URI "http:" (solrAuth solr) "/solr/select" queryParams ""
+--  where queryParams = '?' : 
+
+toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [SearchParameter]
+toQueryMap m [] = m
+toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" (concat (intersperse ',' (map (\(field, order) -> field ++ " " ++ sortOrderValue order) fields)))) rest
+  where sortOrderValue order = (toLower (head (show order)) : tail (show order))
 
 -- todo: URL encode with query parameters
 toMap :: SearchParameter -> (String, String)
@@ -89,8 +102,8 @@ add :: SolrInstance -> [SearchDoc] -> IO (String)
 add solr docs = sendUpdateRequest solr addXml
   where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
 
---update :: SolrInstance -> [SearchDoc] -> IO (String)
---update = add
+update :: SolrInstance -> [SearchDoc] -> IO (String)
+update = add
 
 --deleteByQuery :: SolrInstance a -> [QueryParameter] -> IO (String)
 --deleteByQuery solr q =

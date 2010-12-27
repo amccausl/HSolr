@@ -41,6 +41,7 @@ data SearchParameter = SortParameter [(FieldName, SortOrder)]
                      | FacetStat SearchFacet
   deriving (Eq, Show)
 
+-- TODO: investigate a haskell Range type, if all SearchData elements form ranges, can operate on them (iterable)
 data SearchFacet = RangeFacet FieldName FieldValue FieldValue
                  | ValueFacet FieldName FieldValue
   deriving (Eq, Show)
