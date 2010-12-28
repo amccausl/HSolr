@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternGuards #-}
 
 module Network.Search.Data
        ( Searcher(..)
@@ -7,7 +8,7 @@ module Network.Search.Data
        , SearchQuery
        , FieldName
        , FieldValue
-       , SortOrder
+       , SortOrder(..)
        , SearchData(..)
        , SearchDoc(..)
        , SearchResult(..)
@@ -16,7 +17,7 @@ module Network.Search.Data
        , matchesFacet
        ) where
 
-import Data.UUID
+import Data.Ranged
 import Data.Time
 
 class Searcher t where
@@ -41,17 +42,15 @@ data SearchParameter = SortParameter [(FieldName, SortOrder)]
                      | FacetStat SearchFacet
   deriving (Eq, Show)
 
--- TODO: investigate a haskell Range type, if all SearchData elements form ranges, can operate on them (iterable)
-data SearchFacet = RangeFacet FieldName FieldValue FieldValue
+data SearchFacet = RangeFacet FieldName (Range FieldValue)
                  | ValueFacet FieldName FieldValue
   deriving (Eq, Show)
 
 getFacetField :: SearchFacet -> FieldName
-getFacetField (RangeFacet field _ _) = field
+getFacetField (RangeFacet field _) = field
 getFacetField (ValueFacet field _) = field
 
-data SearchData = SearchId UUID
-                | SearchInt Int
+data SearchData = SearchInt Int
                 | SearchFloat Float
                 | SearchBool Bool
                 | SearchStr String
@@ -61,12 +60,15 @@ data SearchData = SearchId UUID
 
 instance Show SearchData where
   show (SearchStr value) = value
-  show (SearchId value) = show value
   show (SearchInt value) = show value
   show (SearchFloat value) = show value
   show (SearchBool value) = show value
   show (SearchDate value) = show value
   show (SearchArr value) = show value
+
+instance DiscreteOrdered SearchData where
+   adjacent _ _ = False
+   adjacentBelow = const Nothing
 
 type SearchDoc = [(String, SearchData)]
 
@@ -82,7 +84,7 @@ getFieldValues targetName ((name, value):rest) | name /= targetName = getFieldVa
 
 matchesFacet :: SearchFacet -> SearchDoc -> Bool
 matchesFacet _ [] = False
-matchesFacet (RangeFacet fName lower upper) ((name, value):rest) | name == fName, lower <= value, value <= upper = True
+matchesFacet (RangeFacet fName fRange) ((name, value):rest) | name == fName = rangeHas fRange value || matchesFacet (RangeFacet fName fRange) rest
 matchesFacet (ValueFacet fName fValue) ((name, value):rest) | name == fName, value == fValue = True
 matchesFacet facet (_:rest) = matchesFacet facet rest
 

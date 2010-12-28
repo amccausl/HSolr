@@ -35,7 +35,8 @@ Build-type:          Simple
 Library
   hs-source-dirs:      src
   Exposed-modules:     Network.Search.Solr, Network.Search.Data, Network.Search.Arrows
-  Build-depends:       hxt >= 9.0.0 && < 9.1.
+  Build-depends:       hxt >= 9.0.0 && < 9.1.,
+                       Ranged-set >= 0.3.0 && < 0.4.
   ghc-options:         -Wall
   extensions:          MultiParamTypeClasses, TypeSynonymInstances, PatternGuards
 
