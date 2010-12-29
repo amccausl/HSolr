@@ -16,13 +16,15 @@ module Network.Search.Solr
        , deleteByID
        , commit
        , optimize
---       , mkQueryString -- Export for testing purposes.  This should not be used.
+
+       , parseSolrResult
+       , mkQueryRequest
+       , mkUpdateRequest
        , toQueryMap
        ) where
 
 -- Import data types
 import Network.Search.Data
-import Data.UUID
 import Data.Time
 import Locale
 import qualified Data.Map as Map
@@ -30,7 +32,7 @@ import Data.Char (toLower)
 import List (intersperse)
 
 -- Import Networking modules
-import Network.URI (URI(..), URIAuth(..), parseURI, uriScheme, uriPath, uriQuery, uriFragment, escapeURIString, isUnescapedInURI)
+import Network.URI (URI(..), URIAuth(..), escapeURIString, isUnescapedInURI)
 import Network.TCP as TCP
 import Network.HTTP
 
@@ -48,29 +50,76 @@ data SolrInstance = SolrInstance { solrHost :: String
 
 instance Searcher SolrInstance where
   query solr q = do
-                 responseStr <- sendQueryRequest solr (queryStr q)
+                 responseStr <- sendQueryRequest solr (mkQueryRequest solr (toQueryMap Map.empty q))
                  return (parseSolrResult responseStr)
-
---mkQuery :: SolrInstance -> [SearchParameter] -> URI
---mkQuery solr p = URI "http:" (solrAuth solr) "/solr/select" queryParams ""
---  where queryParams = '?' : 
-
-toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [String]
-toQueryMap m [] = m
-toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [implode "," (map (encodeSort) fields)] m) rest
-  where encodeSort (field, order) = field ++ " " ++ (toLower (head (show order)) : tail (show order))
-toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
 
 -- Copy of implode function from PHP
 implode :: [a] -> [[a]] -> [a]
 implode glue = concat . intersperse glue
 
--- todo: URL encode with query parameters
-toMap :: SearchParameter -> (String, String)
-toMap (Keyword keyword) = ("q", keyword)
+--add :: SolrInstance -> [SearchDoc] -> IO (String)
+--add solr docs = sendUpdateRequest solr addXml
+--  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
 
-queryStr :: [SearchParameter] -> String
-queryStr sp = concat (intersperse "&" (map ((\(k, v) -> k ++ "=" ++ v) . toMap) sp))
+--update :: SolrInstance -> [SearchDoc] -> IO (String)
+--update = add
+
+--deleteByQuery :: SolrInstance a -> [QueryParameter] -> IO (String)
+--deleteByQuery solr q =
+
+deleteByID :: SolrInstance -> String -> IO (String)
+deleteByID solr id = sendUpdateRequest solr (mkUpdateRequest solr ("<delete><id>" ++ id ++ "</id></delete>"))
+
+commit :: SolrInstance -> IO (String)
+commit solr = sendUpdateRequest solr (mkUpdateRequest solr "<commit/>")
+
+optimize :: SolrInstance -> IO (String)
+optimize solr = sendUpdateRequest solr (mkUpdateRequest solr "<optimize/>")
+
+-- * HTTP functions
+
+solrAuth :: SolrInstance -> Maybe URIAuth
+solrAuth solr = Just (URIAuth "" host port)
+  where host = solrHost solr
+        port = show (solrPort solr)
+
+-- * Functions to query a SolrInstance for documents
+
+-- | Create a URI for a query of the SolrInstance with the given query string
+queryURI :: SolrInstance -> String -> URI
+queryURI solr query = URI "http:" (solrAuth solr) "/solr/select" query ""
+
+-- | Create a Map to hold the parameters for a search query
+toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [String]
+toQueryMap m [] = m
+toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [implode "," (map (encodeSort) fields)] m) rest
+  where encodeSort (field, order) = field ++ " " ++ ((\(o:rest) -> (toLower o) : rest) (show order))
+toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
+
+-- | Create an HTTP request from a Query Map
+mkQueryRequest :: SolrInstance -> Map.Map String [String] -> Request_String
+mkQueryRequest solr queryMap = Request { rqURI = queryURI solr queryStr :: URI
+                                       , rqMethod = GET :: RequestMethod
+                                       , rqHeaders = [] :: [Header]
+                                       , rqBody = ""
+                                       }
+  where queryStr = toQueryStr queryMap
+
+-- | Encode a query map to a query string
+toQueryStr :: Map.Map String [String] -> String
+toQueryStr queryMap = implode "&" (map (\(k, v) -> k ++ "=" ++ (escapeURIString (isUnescapedInURI) v)) (Map.foldWithKey (f) [] queryMap))
+  where f k vs acc = acc ++ (map (\v -> (k, v)) vs)
+
+-- | Send a Request to the SolrInstance
+sendQueryRequest :: SolrInstance -> Request_String -> IO (String)
+sendQueryRequest solr req = do
+                            conn <- TCP.openStream (solrHost solr) (solrPort solr)
+                            rawResponse <- sendHTTP conn req
+                            body <- getResponseBody rawResponse
+                            return body
+                            --case rawResponse of
+                            --   Right response -> return response
+                            --   Left error -> return error
 
 parseSolrResult :: String -> SearchResult
 parseSolrResult responseStr = SearchResult { resultDocs = runLA (xread >>> getDocs) (dropWhile (/= '\n') responseStr) :: [SearchDoc]
@@ -101,24 +150,30 @@ getSolrData = processType "str" (\x -> SearchStr x)
           <+> ((isElem >>> hasName "arr") >>> (getChildren >>> getSolrData) >. SearchArr)
   where processType t f = isElem >>> hasName t >>> getChildren >>> getText >>> arr f
 
---add :: SolrInstance -> [SearchDoc] -> IO (String)
---add solr docs = sendUpdateRequest solr addXml
---  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
+-- * Functions to update documents in a SolrInstance
 
---update :: SolrInstance -> [SearchDoc] -> IO (String)
---update = add
+updateURI :: SolrInstance -> URI
+updateURI solr = URI "http:" (solrAuth solr) "/solr/update" "" ""
 
---deleteByQuery :: SolrInstance a -> [QueryParameter] -> IO (String)
---deleteByQuery solr q =
+mkUpdateRequest :: SolrInstance -> String -> Request_String
+mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
+                                   , rqMethod = POST :: RequestMethod
+                                   , rqHeaders = [ Header HdrContentType   "text/xml; charset=utf-8"
+                                                 , Header HdrContentLength (show (length msg))
+                                                 ] :: [Header]
+                                   , rqBody = msg
+                                   }
 
-deleteByID :: SolrInstance -> String -> IO (String)
-deleteByID solr id = sendUpdateRequest solr ("<delete><id>" ++ id ++ "</id></delete>")
-
-commit :: SolrInstance -> IO (String)
-commit solr = sendUpdateRequest solr "<commit/>"
-
-optimize :: SolrInstance -> IO (String)
-optimize solr = sendUpdateRequest solr "<optimize/>"
+sendUpdateRequest :: SolrInstance -> Request_String -> IO (String)
+sendUpdateRequest solr req = do
+                             conn <- TCP.openStream (solrHost solr) (solrPort solr)
+                             print (rqBody req)
+                             rawResponse <- sendHTTP conn req
+                             body <- getResponseBody rawResponse
+                             return body
+                             --case rawResponse of
+                             --   Right response -> return response
+                             --   Left error -> return error
 
 -- XML generation functions
 wrapInTag tag = arr (NTree (XTag (mkName tag) []))
@@ -130,58 +185,5 @@ mkSolrData :: ArrowXml a => a (String, SearchData) XmlTree
 mkSolrData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper]
   where nameHelper (name, _) = NTree (XText name) []
         solrDataHelper (_, solrData) = NTree (XText (show solrData)) []
-
--- HTTP functions
-
-solrAuth :: SolrInstance -> Maybe URIAuth
-solrAuth solr = Just (URIAuth "" host port)
-  where host = solrHost solr
-        port = show (solrPort solr)
-
-updateURI :: SolrInstance -> URI
-updateURI solr = URI "http:" (solrAuth solr) "/solr/update" "" ""
-
-queryURI :: SolrInstance -> String -> URI
-queryURI solr query = URI "http:" (solrAuth solr) "/solr/select" query ""
-
-sendUpdateRequest :: SolrInstance -> String -> IO (String)
-sendUpdateRequest solr msg = do
-                             conn <- TCP.openStream (solrHost solr) (solrPort solr)
-                             print (rqBody req)
-                             rawResponse <- sendHTTP conn req
-                             body <- getResponseBody rawResponse
-                             return body
-                             --case rawResponse of
-                             --   Right response -> return response
-                             --   Left error -> return error
-  where req = mkUpdateRequest solr msg
-
-sendQueryRequest :: SolrInstance -> String -> IO (String)
-sendQueryRequest solr msg = do
-                            conn <- TCP.openStream (solrHost solr) (solrPort solr)
-                            rawResponse <- sendHTTP conn req
-                            body <- getResponseBody rawResponse
-                            return body
-                            --case rawResponse of
-                            --   Right response -> return response
-                            --   Left error -> return error
-  where req = mkQueryRequest solr msg
-
-
-mkUpdateRequest :: SolrInstance -> String -> Request String
-mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
-                                   , rqMethod = POST :: RequestMethod
-                                   , rqHeaders = [ Header HdrContentType   "text/xml; charset=utf-8"
-                                                 , Header HdrContentLength (show (length msg))
-                                                 ] :: [Header]
-                                   , rqBody = msg
-                                   }
-
-mkQueryRequest :: SolrInstance -> String -> Request String
-mkQueryRequest solr queryStr = Request { rqURI = queryURI solr queryStr :: URI
-                                       , rqMethod = GET :: RequestMethod
-                                       , rqHeaders = [] :: [Header]
-                                       , rqBody = ""
-                                       }
 
 \end{code}

@@ -36,9 +36,11 @@ Library
   hs-source-dirs:      src
   Exposed-modules:     Network.Search.Solr, Network.Search.Data, Network.Search.Arrows
   Build-depends:       hxt >= 9.0.0 && < 9.1.,
+                       network >= 2.2.1.1 && < 2.2.2.,
+                       HTTP >= 4000.0.9 && < 4000.2.,
                        Ranged-set >= 0.3.0 && < 0.4.
   ghc-options:         -Wall
-  extensions:          MultiParamTypeClasses, TypeSynonymInstances, PatternGuards
+  extensions:          MultiParamTypeClasses, TypeSynonymInstances, PatternGuards, NoMonomorphismRestriction
 
   -- Modules not exported by this package.
   -- Other-modules:       
