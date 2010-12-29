@@ -16,7 +16,7 @@ import Data.List
 
 -- Import library to test
 import Network.Search.Data
---import Network.Search.Solr
+import Network.Search.Solr
 
 -- * Test toQueryMap
 
@@ -33,15 +33,4 @@ test_toQueryMap_sort3 = toQueryMap Map.empty [SortParameter [("price", Desc), ("
 -- ...&q=*:*&facet=true&facet.field=cat&facet.field=inStock
 -- ...&q=ipod&facet=true&facet.query=price:[0 TO 100]&facet.query=price:[100 TO *]
 -- ...&q=*:*&facet=true&facet.date=manufacturedate_dt&facet.date.start=2004-01-01T00:00:00Z&facet.date.end=2010-01-01T00:00:00Z&facet.date.gap=+1YEAR
-
--- Copy of 'toQueryMap' from Network.Search.Solr
-toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [String]
-toQueryMap m [] = m
-toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [implode "," (map (encodeSort) fields)] m) rest
-  where encodeSort (field, order) = field ++ " " ++ (toLower (head (show order)) : tail (show order))
-toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
-
--- Copy of implode function from PHP
-implode :: [a] -> [[a]] -> [a]
-implode glue = concat . intersperse glue
 

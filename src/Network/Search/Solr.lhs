@@ -5,12 +5,13 @@
 
 
 \begin{code}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Network.Search.Solr
        ( SolrInstance(..)
        , query
-       , add
-       , update
+--       , add
+--       , update
 --       , deleteByQuery
        , deleteByID
        , commit
@@ -54,10 +55,15 @@ instance Searcher SolrInstance where
 --mkQuery solr p = URI "http:" (solrAuth solr) "/solr/select" queryParams ""
 --  where queryParams = '?' : 
 
-toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [SearchParameter]
+toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [String]
 toQueryMap m [] = m
-toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" (concat (intersperse ',' (map (\(field, order) -> field ++ " " ++ sortOrderValue order) fields)))) rest
-  where sortOrderValue order = (toLower (head (show order)) : tail (show order))
+toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [implode "," (map (encodeSort) fields)] m) rest
+  where encodeSort (field, order) = field ++ " " ++ (toLower (head (show order)) : tail (show order))
+toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
+
+-- Copy of implode function from PHP
+implode :: [a] -> [[a]] -> [a]
+implode glue = concat . intersperse glue
 
 -- todo: URL encode with query parameters
 toMap :: SearchParameter -> (String, String)
@@ -87,23 +93,20 @@ processDoc = (getChildren >>> processField) >. id
   where processField = (getAttrl >>> getChildren >>> getText) &&& getSolrData
 
 getSolrData :: (ArrowXml a) => a XmlTree SearchData
-getSolrData = processType "str" (\x -> tryUUID x)
+getSolrData = processType "str" (\x -> SearchStr x)
           <+> processType "bool" (\x -> SearchBool (x == "true"))
           <+> processType "float" (\x -> SearchFloat (read x))
           <+> processType "date" (\x -> SearchDate (readTime defaultTimeLocale "%FT%TZ" x))
           <+> processType "int" (\x -> SearchInt (read x))
           <+> ((isElem >>> hasName "arr") >>> (getChildren >>> getSolrData) >. SearchArr)
   where processType t f = isElem >>> hasName t >>> getChildren >>> getText >>> arr f
-        tryUUID str = case fromString str of
-            Just uuid -> SearchId uuid
-            Nothing -> SearchStr str
 
-add :: SolrInstance -> [SearchDoc] -> IO (String)
-add solr docs = sendUpdateRequest solr addXml
-  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
+--add :: SolrInstance -> [SearchDoc] -> IO (String)
+--add solr docs = sendUpdateRequest solr addXml
+--  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
 
-update :: SolrInstance -> [SearchDoc] -> IO (String)
-update = add
+--update :: SolrInstance -> [SearchDoc] -> IO (String)
+--update = add
 
 --deleteByQuery :: SolrInstance a -> [QueryParameter] -> IO (String)
 --deleteByQuery solr q =
@@ -165,7 +168,7 @@ sendQueryRequest solr msg = do
   where req = mkQueryRequest solr msg
 
 
-mkUpdateRequest :: SolrInstance -> String -> Request
+mkUpdateRequest :: SolrInstance -> String -> Request String
 mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
                                    , rqMethod = POST :: RequestMethod
                                    , rqHeaders = [ Header HdrContentType   "text/xml; charset=utf-8"
@@ -174,7 +177,7 @@ mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
                                    , rqBody = msg
                                    }
 
-mkQueryRequest :: SolrInstance -> String -> Request
+mkQueryRequest :: SolrInstance -> String -> Request String
 mkQueryRequest solr queryStr = Request { rqURI = queryURI solr queryStr :: URI
                                        , rqMethod = GET :: RequestMethod
                                        , rqHeaders = [] :: [Header]
