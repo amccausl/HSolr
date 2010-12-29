@@ -8,7 +8,9 @@ import Test.HUnit
 
 import qualified Network.Search.TestSolr as Solr
 
-main = defaultMain [ testGroup "toQueryMap" [ testCase "sort1" Solr.test_toQueryMap_sort1
+main = defaultMain [ testGroup "parseSolrResult" [ testCase "docs1" Solr.test_parseSolrResult_docs1
+                                                 ]
+                   , testGroup "toQueryMap" [ testCase "sort1" Solr.test_toQueryMap_sort1
                                             , testCase "sort2" Solr.test_toQueryMap_sort2
                                             , testCase "sort3" Solr.test_toQueryMap_sort3
                                             ]
