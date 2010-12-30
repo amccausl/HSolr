@@ -20,6 +20,17 @@ import Locale
 import Network.Search.Data
 import Network.Search.Solr
 
+tests = [ testGroup "Solr:parseSolrResult" [ testCase "docs1" test_parseSolrResult_docs1
+                                           , testCase "count1" test_parseSolrResult_count1
+                                           , testCase "facet1" test_parseSolrResult_facet1
+                                           , testCase "refinements1" test_parseSolrResult_refinements1
+                                           ]
+        , testGroup "Solr:toQueryMap" [ testCase "sort1" test_toQueryMap_sort1
+                                      , testCase "sort2" test_toQueryMap_sort2
+                                      , testCase "sort3" test_toQueryMap_sort3
+                                      ]
+        ]
+
 solrInstance = SolrInstance { solrHost = "localhost"
                             , solrPort = 8080
                             }
@@ -92,12 +103,15 @@ test_parseSolrResult_docs1 = resultDocs resultTest1 @?= [ [ ("cat",SearchArr [Se
                                                           ]
                                                         ]
 
+test_parseSolrResult_count1 = resultCount resultTest1 @?= 2
+
+test_parseSolrResult_facet1 = resultFacets resultTest1 @?= []
+
+test_parseSolrResult_refinements1 = resultRefinements resultTest1 @?= []
 
 -- * Test mkQueryRequest
 
 -- * Test mkUpdateRequest
-
--- * Test toQueryMap
 
 -- * Test toQueryMap
 

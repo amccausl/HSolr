@@ -56,15 +56,7 @@ data SearchData = SearchInt Int
                 | SearchStr String
                 | SearchDate UTCTime
                 | SearchArr [SearchData]
-  deriving (Eq, Ord)
-
-instance Show SearchData where
-  show (SearchStr value) = value
-  show (SearchInt value) = show value
-  show (SearchFloat value) = show value
-  show (SearchBool value) = show value
-  show (SearchDate value) = show value
-  show (SearchArr value) = show value
+  deriving (Eq, Ord, Show)
 
 instance DiscreteOrdered SearchData where
    adjacent _ _ = False
@@ -79,13 +71,16 @@ getFieldValue targetName ((name, value):rest) | name /= targetName = getFieldVal
 
 getFieldValues :: FieldName -> SearchDoc -> [SearchData]
 getFieldValues _  [] = []
+getFieldValues targetName ((name, SearchArr values):rest) | name == targetName = values ++ (getFieldValues targetName rest)
 getFieldValues targetName ((name, value):rest) | name == targetName = value : (getFieldValues targetName rest)
 getFieldValues targetName ((name, value):rest) | name /= targetName = getFieldValues targetName rest
 
 matchesFacet :: SearchFacet -> SearchDoc -> Bool
 matchesFacet _ [] = False
+matchesFacet (RangeFacet fName fRange) ((name, SearchArr values):rest) | name == fName = or (map (rangeHas fRange) values) || matchesFacet (RangeFacet fName fRange) rest
+matchesFacet (ValueFacet fName fValue) ((name, SearchArr values):rest) | name == fName = or (map (== fValue) values) || matchesFacet (ValueFacet fName fValue) rest
 matchesFacet (RangeFacet fName fRange) ((name, value):rest) | name == fName = rangeHas fRange value || matchesFacet (RangeFacet fName fRange) rest
-matchesFacet (ValueFacet fName fValue) ((name, value):rest) | name == fName, value == fValue = True
+matchesFacet (ValueFacet fName fValue) ((name, value):rest) | name == fName = value == fValue || matchesFacet (ValueFacet fName fValue) rest
 matchesFacet facet (_:rest) = matchesFacet facet rest
 
 data SearchResult = SearchResult { resultDocs :: [SearchDoc]

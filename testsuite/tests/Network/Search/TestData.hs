@@ -20,6 +20,23 @@ import Data.Ranged
 import Network.Search.Data
 import Network.Search.Solr
 
+tests = [ testGroup "Data:getFacetField" [ testCase "1" test_getFacetField1
+                                         , testCase "2" test_getFacetField2
+                                         ]
+        , testGroup "Data:getFieldValue" [ testCase "1" test_getFieldValue1
+                                         , testCase "2" test_getFieldValue2
+                                         ]
+        , testGroup "Data:getFieldValues" [ testCase "1" test_getFieldValues1
+                                          , testCase "2" test_getFieldValues2
+                                          ]
+        , testGroup "Data:matchesFacet" [ testCase "strArrayMatch" test_matchesFacet_strArrayMatch
+                                        , testCase "strArrayMiss" test_matchesFacet_strArrayMiss
+                                        , testCase "strMatch" test_matchesFacet_strMatch
+                                        , testCase "strMiss" test_matchesFacet_strMiss
+                                        ]
+        ]
+
+
 -- * Data instances to test
 
 doc1 = [ ("cat",SearchArr [SearchStr "electronics",SearchStr "connector"])
@@ -74,6 +91,6 @@ test_getFieldValues2 = getFieldValues "cat" doc1 @?= [SearchStr "electronics",Se
 test_matchesFacet_strArrayMatch = matchesFacet (ValueFacet "cat" str2) doc1 @?= True
 test_matchesFacet_strArrayMiss = matchesFacet (ValueFacet "cat" str1) doc1 @?= False
 test_matchesFacet_strMatch = matchesFacet (ValueFacet "manu" str1) doc1 @?= True
-test_matchesFacet_strMiss = matchesFacet (ValueFacet "manu" str2) doc1 @?= True
+test_matchesFacet_strMiss = matchesFacet (ValueFacet "manu" str2) doc1 @?= False
 
 
