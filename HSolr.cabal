@@ -40,7 +40,7 @@ Library
                        HTTP >= 4000.0.9 && < 4000.2.,
                        Ranged-set >= 0.3.0 && < 0.4.
   ghc-options:         -Wall
-  extensions:          MultiParamTypeClasses, TypeSynonymInstances, PatternGuards, NoMonomorphismRestriction
+  extensions:          MultiParamTypeClasses, TypeSynonymInstances, PatternGuards, NoMonomorphismRestriction, Arrows
 
   -- Modules not exported by this package.
   -- Other-modules:       

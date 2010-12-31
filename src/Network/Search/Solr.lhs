@@ -5,7 +5,7 @@
 
 
 \begin{code}
-{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE NoMonomorphismRestriction, Arrows #-}
 
 module Network.Search.Solr
        ( SolrInstance(..)
@@ -122,11 +122,25 @@ sendQueryRequest solr req = do
                             --   Left error -> return error
 
 parseSolrResult :: String -> SearchResult
-parseSolrResult responseStr = SearchResult { resultDocs = runLA (xread >>> getDocs) (dropWhile (/= '\n') responseStr) :: [SearchDoc]
-                                           , resultCount = 0 :: (Num n) => n
-                                           , resultFacets = [] :: (Num n) => [(SearchFacet, n)]
-                                           , resultRefinements = [] :: [SearchParameter]
-                                           }
+--parseSolrResult responseStr = SearchResult { resultDocs = runLA (xread >>> getDocs) (dropWhile (/= '\n') responseStr) :: [SearchDoc]
+--                                           , resultCount = 0 :: (Num n) => n
+--                                           , resultFacets = [] :: (Num n) => [(SearchFacet, n)]
+--                                           , resultRefinements = [] :: [SearchParameter]
+--                                           }
+
+parseSolrResult responseStr = head (runLA (xread >>> getSearchResult) (dropWhile (/= '\n') responseStr))
+
+getSearchResult :: (ArrowXml a) => a XmlTree SearchResult
+getSearchResult = proc x -> do
+                       d <- (getDocs >. id) -< x
+                       c <- getCount -< x
+                       f <- getFacets -< x
+                       r <- getRefinements -< x
+                       returnA -< SearchResult { resultDocs = d
+                                               , resultCount = c
+                                               , resultFacets = f
+                                               , resultRefinements = r
+                                               }
 
 findResponse = getChildren >>> isElem >>> hasName "response"
 
@@ -149,6 +163,15 @@ getSolrData = processType "str" (\x -> SearchStr x)
           <+> processType "int" (\x -> SearchInt (read x))
           <+> ((isElem >>> hasName "arr") >>> (getChildren >>> getSolrData) >. SearchArr)
   where processType t f = isElem >>> hasName t >>> getChildren >>> getText >>> arr f
+
+getCount :: (ArrowXml a) => a XmlTree Integer
+getCount = getChildren >>> isElem >>> hasName "result" >>> getAttrValue "numFound" >>> arr read
+
+getFacets :: (ArrowXml a) => a XmlTree [(SearchFacet, Integer)]
+getFacets = constA []
+
+getRefinements :: (ArrowXml a) => a XmlTree [SearchParameter]
+getRefinements = constA []
 
 -- * Functions to update documents in a SolrInstance
 
