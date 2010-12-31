@@ -33,6 +33,12 @@ tests = [ testGroup "Data:getFacetField" [ testCase "1" test_getFacetField1
                                         , testCase "strArrayMiss" test_matchesFacet_strArrayMiss
                                         , testCase "strMatch" test_matchesFacet_strMatch
                                         , testCase "strMiss" test_matchesFacet_strMiss
+                                        , testCase "intMatch" test_matchesFacet_intMatch
+                                        , testCase "intMiss" test_matchesFacet_intMiss
+                                        , testCase "intRangeTopMatches" test_matchesFacet_intRangeTopMatches
+                                        , testCase "intRangeTopMisses" test_matchesFacet_intRangeTopMisses
+                                        , testCase "intRangeBotMatches" test_matchesFacet_intRangeBotMatches
+                                        , testCase "intRangeBotMisses" test_matchesFacet_intRangeBotMisses
                                         ]
         ]
 
@@ -52,9 +58,9 @@ doc1 = [ ("cat",SearchArr [SearchStr "electronics",SearchStr "connector"])
        ]
 
 -- Int
+int0 = SearchInt 0
 int1 = SearchInt 1
 int2 = SearchInt 2
-int3 = SearchInt 0
 
 -- Float
 float1 = SearchFloat 19.95
@@ -93,4 +99,10 @@ test_matchesFacet_strArrayMiss = matchesFacet (ValueFacet "cat" str1) doc1 @?= F
 test_matchesFacet_strMatch = matchesFacet (ValueFacet "manu" str1) doc1 @?= True
 test_matchesFacet_strMiss = matchesFacet (ValueFacet "manu" str2) doc1 @?= False
 
+test_matchesFacet_intMatch = matchesFacet (ValueFacet "popularity" int1) doc1 @?= True
+test_matchesFacet_intMiss = matchesFacet (ValueFacet "popularity" int2) doc1 @?= False
 
+test_matchesFacet_intRangeTopMatches = matchesFacet (RangeFacet "popularity" (Range (BoundaryBelow int0) (BoundaryAbove int1))) doc1 @?= True
+test_matchesFacet_intRangeTopMisses = matchesFacet (RangeFacet "popularity" (Range (BoundaryBelow int0) (BoundaryBelow int1))) doc1 @?= False
+test_matchesFacet_intRangeBotMatches = matchesFacet (RangeFacet "popularity" (Range (BoundaryBelow int1) (BoundaryAbove int2))) doc1 @?= True
+test_matchesFacet_intRangeBotMisses = matchesFacet (RangeFacet "popularity" (Range (BoundaryAbove int1) (BoundaryAbove int2))) doc1 @?= False
