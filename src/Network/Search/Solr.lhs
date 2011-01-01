@@ -122,25 +122,28 @@ sendQueryRequest solr req = do
                             --   Left error -> return error
 
 parseSolrResult :: String -> SearchResult
---parseSolrResult responseStr = SearchResult { resultDocs = runLA (xread >>> getDocs) (dropWhile (/= '\n') responseStr) :: [SearchDoc]
---                                           , resultCount = 0 :: (Num n) => n
---                                           , resultFacets = [] :: (Num n) => [(SearchFacet, n)]
---                                           , resultRefinements = [] :: [SearchParameter]
---                                           }
+parseSolrResult responseStr = SearchResult { resultDocs = runLA (getChildren >>> isElem >>> hasName "doc" >>> processDoc) resultTag :: [SearchDoc]
+                                           , resultCount = head (runLA (getAttrValue "numFound" >>> arr read) resultTag) :: Integer
+                                           , resultFacets = runLA (hasAttrValue "name" (== "facet_counts") >>> getFacets) metaTag :: [(SearchFacet, Integer)]
+                                           , resultRefinements = [] :: [SearchParameter]
+                                           }
+  where xml = head (runLA xread responseStr)
+        resultTag = head (runLA (getChildren >>> isElem >>> hasName "result") xml)
+        metaTag = head (runLA (getChildren >>> isElem >>> hasName "lst") xml)
 
-parseSolrResult responseStr = head (runLA (xread >>> getSearchResult) (dropWhile (/= '\n') responseStr))
+--parseSolrResult responseStr = head (runLA (xread >>> getSearchResult) (dropWhile (/= '\n') responseStr))
 
-getSearchResult :: (ArrowXml a) => a XmlTree SearchResult
-getSearchResult = proc x -> do
-                       d <- (getDocs >. id) -< x
-                       c <- getCount -< x
-                       f <- getFacets -< x
-                       r <- getRefinements -< x
-                       returnA -< SearchResult { resultDocs = d
-                                               , resultCount = c
-                                               , resultFacets = f
-                                               , resultRefinements = r
-                                               }
+--getSearchResult :: (ArrowXml a) => a XmlTree SearchResult
+--getSearchResult = proc x -> do
+--                       d <- (getDocs >. id) -< x
+--                       c <- getCount -< x
+--                       f <- getFacets -< x
+--                       r <- getRefinements -< x
+--                       returnA -< SearchResult { resultDocs = d
+--                                               , resultCount = c
+--                                               , resultFacets = f
+--                                               , resultRefinements = r
+--                                               }
 
 findResponse = getChildren >>> isElem >>> hasName "response"
 
@@ -167,8 +170,25 @@ getSolrData = processType "str" (\x -> SearchStr x)
 getCount :: (ArrowXml a) => a XmlTree Integer
 getCount = getChildren >>> isElem >>> hasName "result" >>> getAttrValue "numFound" >>> arr read
 
-getFacets :: (ArrowXml a) => a XmlTree [(SearchFacet, Integer)]
-getFacets = constA []
+-- | Process the top level "facet_counts" lst xml element into the "facet_queries", "facet_fields", and "facet_dates" elements
+getFacets :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
+getFacets = getChildren >>> ( ( getFacetQueries )
+                          <+> ( facetType "facet_fields" >>> getFacetFields )
+                          <+> ( getFacetDates ) )
+  where facetType name = isElem >>> hasAttrValue "name" (== name)
+
+-- | Process "facet_queries" lst element
+getFacetQueries :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
+getFacetQueries = constA (ValueFacet "testQueries" (SearchStr "testValue"), 1)
+
+-- | Process "facet_fields" lst element
+getFacetFields :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
+getFacetFields = getChildren >>> (getAttrValue "name" &&& (getChildren >>> (getAttrValue "name" &&& (getChildren >>> getText))) >>>
+        arr (\(catName, (catValue, facetCount)) -> (ValueFacet catName (SearchStr catValue), read facetCount)))
+
+-- | Process "facet_dates" lst element
+getFacetDates :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
+getFacetDates = constA (ValueFacet "testDates" (SearchStr "testValue"), 1)
 
 getRefinements :: (ArrowXml a) => a XmlTree [SearchParameter]
 getRefinements = constA []
