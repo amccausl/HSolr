@@ -124,7 +124,7 @@ sendQueryRequest solr req = do
 parseSolrResult :: String -> SearchResult
 parseSolrResult responseStr = SearchResult { resultDocs = runLA (getChildren >>> isElem >>> hasName "doc" >>> processDoc) resultTag :: [SearchDoc]
                                            , resultCount = head (runLA (getAttrValue "numFound" >>> arr read) resultTag) :: Integer
-                                           , resultFacets = runLA (hasAttrValue "name" (== "facet_counts") >>> getFacets) metaTag :: [(SearchFacet, Integer)]
+                                           , resultFacets = runLA (getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml :: [(SearchFacet, Integer)]
                                            , resultRefinements = [] :: [SearchParameter]
                                            }
   where xml = head (runLA xread responseStr)
@@ -177,9 +177,10 @@ getFacets = getChildren >>> ( ( getFacetQueries )
                           <+> ( getFacetDates ) )
   where facetType name = isElem >>> hasAttrValue "name" (== name)
 
+
 -- | Process "facet_queries" lst element
 getFacetQueries :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
-getFacetQueries = constA (ValueFacet "testQueries" (SearchStr "testValue"), 1)
+getFacetQueries = isRoot >>> constA (ValueFacet "testQueries" (SearchStr "testValue"), 1)
 
 -- | Process "facet_fields" lst element
 getFacetFields :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
@@ -188,7 +189,7 @@ getFacetFields = getChildren >>> (getAttrValue "name" &&& (getChildren >>> (getA
 
 -- | Process "facet_dates" lst element
 getFacetDates :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
-getFacetDates = constA (ValueFacet "testDates" (SearchStr "testValue"), 1)
+getFacetDates = isRoot >>> constA (ValueFacet "testDates" (SearchStr "testValue"), 1)
 
 getRefinements :: (ArrowXml a) => a XmlTree [SearchParameter]
 getRefinements = constA []

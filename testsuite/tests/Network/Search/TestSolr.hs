@@ -76,6 +76,16 @@ xmlTest1 = --"<?xml version='1.0' encoding='UTF-8'?>\n\
 \  <float name='weight'>2.0</float>\
 \ </doc>\
 \</result>\
+\<lst name='facet_counts'>\
+\ <lst name='facet_queries'/>\
+\ <lst name='facet_fields'>\
+\  <lst name='manu'>\
+\    <int name='inc'>11</int>\
+\    <int name='corsair'>4</int>\
+\  </lst>\
+\ </lst>\
+\ <lst name='facet_dates'/>\
+\</lst>\
 \</response>"
 
 resultTest1 = parseSolrResult xmlTest1
@@ -106,7 +116,9 @@ test_parseSolrResult_docs1 = resultDocs resultTest1 @?= [ [ ("cat",SearchArr [Se
 
 test_parseSolrResult_count1 = resultCount resultTest1 @?= 2
 
-test_parseSolrResult_facet1 = resultFacets resultTest1 @?= []
+test_parseSolrResult_facet1 = resultFacets resultTest1 @?= [ ( ValueFacet "manu" (SearchStr "inc"), 11 )
+                                                           , ( ValueFacet "manu" (SearchStr "corsair"), 4 )
+                                                           ]
 
 test_parseSolrResult_refinements1 = resultRefinements resultTest1 @?= []
 
