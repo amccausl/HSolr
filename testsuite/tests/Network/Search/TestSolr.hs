@@ -35,6 +35,8 @@ tests = [ testGroup "Solr:parseSolrResult"  [ testCase "docs1" test_parseSolrRes
         , testGroup "Solr:toQueryMap"       [ testCase "sort1" test_toQueryMap_sort1
                                             , testCase "sort2" test_toQueryMap_sort2
                                             , testCase "sort3" test_toQueryMap_sort3
+                                            , testCase "paging1" test_toQueryMap_paging1
+                                            , testCase "paging2" test_toQueryMap_paging2
                                             ]
         ]
 
@@ -182,6 +184,11 @@ test_toQueryMap_sort1 = toQueryMap Map.empty [SortParameter [("price", Desc)]] @
 test_toQueryMap_sort2 = toQueryMap Map.empty [SortParameter [("price", Desc)], SortParameter [("inStock", Asc)]] @?= Map.fromList [("sort", ["inStock asc"])]
 -- multiple value should be comma separated in result
 test_toQueryMap_sort3 = toQueryMap Map.empty [SortParameter [("price", Desc), ("inStock", Asc)]] @?= Map.fromList [("sort", ["price desc,inStock asc"])]
+
+pagingParam1 = PagingFilter 8 2
+pagingParam2 = PagingFilter 10 1
+test_toQueryMap_paging1 = toQueryMap Map.empty [pagingParam1] @?= Map.fromList [("start", ["8"]), ("rows", ["8"])]
+test_toQueryMap_paging2 = toQueryMap Map.empty [pagingParam1, pagingParam2] @?= Map.fromList [("start", ["0"]), ("rows", ["10"])]
 
 -- ...&q=*:*&facet=true&facet.field=cat
 -- ...&q=*:*&facet=true&facet.field=cat&facet.field=inStock

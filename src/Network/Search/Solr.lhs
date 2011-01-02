@@ -97,6 +97,7 @@ toQueryMap m [] = m
 toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [implode "," (map (encodeSort) fields)] m) rest
   where encodeSort (field, order) = field ++ " " ++ ((\(o:rest) -> (toLower o) : rest) (show order))
 toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
+toQueryMap m ((PagingFilter rows page):rest) = toQueryMap (Map.union (Map.fromList [("rows", [show rows]), ("start", [show (rows * (page - 1))])]) m) rest
 
 -- | Create an HTTP request from a Query Map
 mkQueryRequest :: SolrInstance -> Map.Map String [String] -> Request_String
