@@ -146,7 +146,7 @@ addXml1 = "<add>\
   \<field name=\"manufacturedate_dt\">2006-02-14T23:55:59Z</field>\
   \<field name=\"name\">iPod &amp; iPod Mini USB 2.0 Cable</field>\
   \<field name=\"popularity\">1</field>\
-  \<field name=\"price\">11.50</field>\
+  \<field name=\"price\">11.5</field>\
   \<field name=\"weight\">2</field>\
 \</doc>\
 \</add>"

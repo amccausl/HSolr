@@ -240,7 +240,14 @@ toString (SearchInt v) = show v
 toString (SearchFloat v) = (reverse . (dropWhile (\c -> c == '0' || c == '.')) . reverse . show) v
 toString (SearchBool True) = "true"
 toString (SearchBool False) = "false"
-toString (SearchStr v) = v
+toString (SearchStr v) = xmlEncode v
+  where xmlEncode ('<':rest) = "&lt;" ++ xmlEncode rest
+        xmlEncode ('>':rest) = "&gt;" ++ xmlEncode rest
+        xmlEncode ('&':rest) = "&amp;" ++ xmlEncode rest
+        xmlEncode ('\'':rest) = "&apos;" ++ xmlEncode rest
+        xmlEncode ('"':rest) = "&quot;" ++ xmlEncode rest
+        xmlEncode (c:rest) = [c] ++ xmlEncode rest
+        xmlEncode [] = []
 toString (SearchDate v) = formatTime defaultTimeLocale "%FT%TZ" v
 
 sendUpdateRequest :: SolrInstance -> Request_String -> IO (String)
