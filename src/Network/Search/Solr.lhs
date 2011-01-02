@@ -237,13 +237,11 @@ mkSearchData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper
 
 toString :: SearchData -> String
 toString (SearchInt v) = show v
--- TODO: remove trailing zeros
-toString (SearchFloat v) = show v
+toString (SearchFloat v) = (reverse . (dropWhile (\c -> c == '0' || c == '.')) . reverse . show) v
 toString (SearchBool True) = "true"
 toString (SearchBool False) = "false"
 toString (SearchStr v) = v
--- Use standard solr date format
-toString (SearchDate v) = show v
+toString (SearchDate v) = formatTime defaultTimeLocale "%FT%TZ" v
 
 sendUpdateRequest :: SolrInstance -> Request_String -> IO (String)
 sendUpdateRequest solr req = do
