@@ -19,6 +19,7 @@ module Network.Search.Solr
 
        , parseSolrResult
        , mkQueryRequest
+       , mkAddRequest
        , mkUpdateRequest
        , toQueryMap
        ) where
@@ -53,10 +54,11 @@ instance Searcher SolrInstance where
                  responseStr <- sendQueryRequest solr (mkQueryRequest solr (toQueryMap Map.empty q))
                  return (parseSolrResult responseStr)
 
--- Copy of implode function from PHP
+-- | Copy of implode function from PHP
 implode :: [a] -> [[a]] -> [a]
 implode glue = concat . intersperse glue
 
+-- TODO: copy working versions from tests
 --add :: SolrInstance -> [SearchDoc] -> IO (String)
 --add solr docs = sendUpdateRequest solr addXml
 --  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
@@ -121,12 +123,14 @@ sendQueryRequest solr req = do
                             --   Right response -> return response
                             --   Left error -> return error
 
-parseSolrResult :: String -> SearchResult
-parseSolrResult responseStr = SearchResult { resultDocs = runLA (getChildren >>> isElem >>> hasName "doc" >>> processDoc) resultTag :: [SearchDoc]
-                                           , resultCount = head (runLA (getAttrValue "numFound" >>> arr read) resultTag) :: Integer
-                                           , resultFacets = runLA (getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml :: [(SearchFacet, Integer)]
-                                           , resultRefinements = [] :: [SearchParameter]
-                                           }
+-- | Parse the Solr XML query result to the proper datatypes (TODO: add proper error handling)
+parseSolrResult :: String               -- ^ An XML string response from a Solr search query
+                -> Maybe SearchResult   -- ^ The SearchResult type represented by the XML if the parsing was successful
+parseSolrResult responseStr = Just SearchResult { resultDocs = runLA (getChildren >>> isElem >>> hasName "doc" >>> processDoc) resultTag :: [SearchDoc]
+                                                , resultCount = head (runLA (getAttrValue "numFound" >>> arr read) resultTag) :: Integer
+                                                , resultFacets = runLA (getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml :: [(SearchFacet, Integer)]
+                                                , resultRefinements = [] :: [SearchParameter]
+                                                }
   where xml = head (runLA xread responseStr)
         resultTag = head (runLA (getChildren >>> isElem >>> hasName "result") xml)
         metaTag = head (runLA (getChildren >>> isElem >>> hasName "lst") xml)
@@ -147,6 +151,7 @@ parseSolrResult responseStr = SearchResult { resultDocs = runLA (getChildren >>>
 
 findResponse = getChildren >>> isElem >>> hasName "response"
 
+-- | Find and process all the "doc" elements under the "result" tag
 getDocs :: (ArrowXml a) => a XmlTree SearchDoc
 getDocs = getChildren >>>
     isElem >>> hasName "result" >>>
@@ -154,10 +159,12 @@ getDocs = getChildren >>>
     isElem >>> hasName "doc" >>>
     processDoc
 
+-- | Process and collect the fields from a "doc" element
 processDoc :: (ArrowXml a) => a XmlTree SearchDoc
 processDoc = (getChildren >>> processField) >. id
   where processField = (getAttrl >>> getChildren >>> getText) &&& getSolrData
 
+-- | Process typed field from within "doc" element
 getSolrData :: (ArrowXml a) => a XmlTree SearchData
 getSolrData = processType "str" (\x -> SearchStr x)
           <+> processType "bool" (\x -> SearchBool (x == "true"))
@@ -167,6 +174,7 @@ getSolrData = processType "str" (\x -> SearchStr x)
           <+> ((isElem >>> hasName "arr") >>> (getChildren >>> getSolrData) >. SearchArr)
   where processType t f = isElem >>> hasName t >>> getChildren >>> getText >>> arr f
 
+-- | Extract "numFound" attribute from top level "result" element
 getCount :: (ArrowXml a) => a XmlTree Integer
 getCount = getChildren >>> isElem >>> hasName "result" >>> getAttrValue "numFound" >>> arr read
 
@@ -177,8 +185,7 @@ getFacets = getChildren >>> ( ( getFacetQueries )
                           <+> ( getFacetDates ) )
   where facetType name = isElem >>> hasAttrValue "name" (== name)
 
-
--- | Process "facet_queries" lst element
+-- | Process "facet_queries" lst element (TODO)
 getFacetQueries :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
 getFacetQueries = isRoot >>> constA (ValueFacet "testQueries" (SearchStr "testValue"), 1)
 
@@ -187,7 +194,7 @@ getFacetFields :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
 getFacetFields = getChildren >>> (getAttrValue "name" &&& (getChildren >>> (getAttrValue "name" &&& (getChildren >>> getText))) >>>
         arr (\(catName, (catValue, facetCount)) -> (ValueFacet catName (SearchStr catValue), read facetCount)))
 
--- | Process "facet_dates" lst element
+-- | Process "facet_dates" lst element (TODO)
 getFacetDates :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
 getFacetDates = isRoot >>> constA (ValueFacet "testDates" (SearchStr "testValue"), 1)
 
@@ -208,6 +215,33 @@ mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
                                    , rqBody = msg
                                    }
 
+mkAddRequest :: (Searchable s) => SolrInstance -> [s] -> Request_String
+mkAddRequest solr docs = mkUpdateRequest solr xml
+  where xml = concat (runLA (xshow mkAddDocs) (map (toSearchDoc) docs))
+--mkAddRequest solr docs = runLA (xshow mkAddDocs) docs
+
+wrapInTag tag = arr (NTree (XTag (mkName tag) []))
+
+mkAddDocs :: ArrowXml a => a [SearchDoc] XmlTree
+mkAddDocs = (arrL id >>> mkDocs) >. wrapInTag "add"
+
+mkDocs :: ArrowXml a => a SearchDoc XmlTree
+mkDocs = (arrL id >>> mkSearchData) >. wrapInTag "doc"
+
+mkSearchData :: ArrowXml a => a (String, SearchData) XmlTree
+mkSearchData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper]
+  where nameHelper (name, _) = NTree (XText name) []
+        solrDataHelper (_, solrData) = NTree (XText (toString solrData)) []
+
+toString :: SearchData -> String
+toString (SearchInt v) = show v
+toString (SearchFloat v) = show v
+toString (SearchBool v) = show v
+toString (SearchStr v) = v
+toString (SearchDate v) = show v
+-- TODO: check search arrays
+toString (SearchArr vs) = concat (map (toString) vs)
+
 sendUpdateRequest :: SolrInstance -> Request_String -> IO (String)
 sendUpdateRequest solr req = do
                              conn <- TCP.openStream (solrHost solr) (solrPort solr)
@@ -218,16 +252,5 @@ sendUpdateRequest solr req = do
                              --case rawResponse of
                              --   Right response -> return response
                              --   Left error -> return error
-
--- XML generation functions
-wrapInTag tag = arr (NTree (XTag (mkName tag) []))
-
---mkDocs = (arrL id >>> arr solrImport >>> mkSolrData) >. wrapInTag "doc"
-mkDocs = wrapInTag "doc"
-
-mkSolrData :: ArrowXml a => a (String, SearchData) XmlTree
-mkSolrData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper]
-  where nameHelper (name, _) = NTree (XText name) []
-        solrDataHelper (_, solrData) = NTree (XText (show solrData)) []
 
 \end{code}

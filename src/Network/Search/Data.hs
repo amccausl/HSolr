@@ -1,7 +1,8 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, TypeSynonymInstances #-}
 
 module Network.Search.Data
        ( Searcher(..)
+       , Searchable(..)
        , SearchParameter(..)
        , SearchFacet(..)
        , getFacetField
@@ -21,11 +22,15 @@ import Data.Ranged
 import Data.Time
 
 class Searcher t where
-  query :: t -> SearchQuery -> IO(SearchResult)
+  query :: t -> SearchQuery -> IO(Maybe SearchResult)
 
 class Searchable t where
   toSearchDoc :: t -> SearchDoc
   fromSearchDoc :: SearchDoc -> Maybe t
+
+instance Searchable SearchDoc where
+  toSearchDoc = id
+  fromSearchDoc = Just
 
 type FieldName = String
 type FieldValue = SearchData

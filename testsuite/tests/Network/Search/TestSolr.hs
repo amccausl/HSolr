@@ -15,28 +15,36 @@ import Data.Char
 import Data.List
 import Data.Time
 import Locale
+import Network.HTTP (Request(..))
 
 -- Import library to test
 import Network.Search.Data
 import Network.Search.Solr
 
-tests = [ testGroup "Solr:parseSolrResult" [ testCase "docs1" test_parseSolrResult_docs1
-                                           , testCase "count1" test_parseSolrResult_count1
-                                           , testCase "facet1" test_parseSolrResult_facet1
-                                           , testCase "refinements1" test_parseSolrResult_refinements1
-                                           ]
-        , testGroup "Solr:toQueryMap" [ testCase "sort1" test_toQueryMap_sort1
-                                      , testCase "sort2" test_toQueryMap_sort2
-                                      , testCase "sort3" test_toQueryMap_sort3
-                                      ]
+tests = [ testGroup "Solr:parseSolrResult"  [ testCase "docs1" test_parseSolrResult_docs1
+                                            , testCase "count1" test_parseSolrResult_count1
+                                            , testCase "facet1" test_parseSolrResult_facet1
+                                            , testCase "refinements1" test_parseSolrResult_refinements1
+                                            ]
+        , testGroup "Solr:mkQueryRequest"   [
+                                            ]
+        , testGroup "Solr:mkAddRequest"     [ testCase "add docs1" test_mkAddRequest_testAdd
+                                            ]
+        , testGroup "Solr:mkUpdateRequest"  [
+                                            ]
+        , testGroup "Solr:toQueryMap"       [ testCase "sort1" test_toQueryMap_sort1
+                                            , testCase "sort2" test_toQueryMap_sort2
+                                            , testCase "sort3" test_toQueryMap_sort3
+                                            ]
         ]
 
+-- * Shared data for testing
 solrInstance = SolrInstance { solrHost = "localhost"
                             , solrPort = 8080
                             }
 
--- * Test parseSolrResult
-xmlTest1 = --"<?xml version='1.0' encoding='UTF-8'?>\n\
+-- | Example response from Solr index for a search query
+responseXml1 = --"<?xml version='1.0' encoding='UTF-8'?>\n\
     "\
 \<response>\
 \<lst name='responseHeader'>\
@@ -88,31 +96,64 @@ xmlTest1 = --"<?xml version='1.0' encoding='UTF-8'?>\n\
 \</lst>\
 \</response>"
 
-resultTest1 = parseSolrResult xmlTest1
+-- | The internal SearchDoc representation of the xml response above
+docs1 = [ [ ("cat",SearchArr [SearchStr "electronics",SearchStr "connector"])
+          , ("features",SearchArr [SearchStr "car power adapter, white"])
+          , ("id",SearchStr "F8V7067-APL-KIT")
+          , ("inStock",SearchBool False)
+          , ("manu",SearchStr "Belkin")
+          , ("manufacturedate_dt",SearchDate (readTime defaultTimeLocale "%FT%TZ" "2005-08-01T16:30:25Z"))
+          , ("name",SearchStr "Belkin Mobile Power Cord for iPod w/ Dock")
+          , ("popularity",SearchInt 1)
+          , ("price",SearchFloat 19.95)
+          , ("weight",SearchFloat 4.0)
+          ]
+        , [ ("cat",SearchArr [SearchStr "electronics",SearchStr "connector"])
+          , ("features",SearchArr [SearchStr "car power adapter for iPod, white"])
+          , ("id",SearchStr "IW-02")
+          , ("inStock",SearchBool False)
+          , ("manu",SearchStr "Belkin")
+          , ("manufacturedate_dt",SearchDate (readTime defaultTimeLocale "%FT%TZ" "2006-02-14T23:55:59Z"))
+          , ("name",SearchStr "iPod & iPod Mini USB 2.0 Cable")
+          , ("popularity",SearchInt 1)
+          , ("price",SearchFloat 11.5)
+          , ("weight",SearchFloat 2.0)
+          ]
+        ]
 
-test_parseSolrResult_docs1 = resultDocs resultTest1 @?= [ [ ("cat",SearchArr [SearchStr "electronics",SearchStr "connector"])
-                                                          , ("features",SearchArr [SearchStr "car power adapter, white"])
-                                                          , ("id",SearchStr "F8V7067-APL-KIT")
-                                                          , ("inStock",SearchBool False)
-                                                          , ("manu",SearchStr "Belkin")
-                                                          , ("manufacturedate_dt",SearchDate (readTime defaultTimeLocale "%FT%TZ" "2005-08-01T16:30:25Z"))
-                                                          , ("name",SearchStr "Belkin Mobile Power Cord for iPod w/ Dock")
-                                                          , ("popularity",SearchInt 1)
-                                                          , ("price",SearchFloat 19.95)
-                                                          , ("weight",SearchFloat 4.0)
-                                                          ]
-                                                        , [ ("cat",SearchArr [SearchStr "electronics",SearchStr "connector"])
-                                                          , ("features",SearchArr [SearchStr "car power adapter for iPod, white"])
-                                                          , ("id",SearchStr "IW-02")
-                                                          , ("inStock",SearchBool False)
-                                                          , ("manu",SearchStr "Belkin")
-                                                          , ("manufacturedate_dt",SearchDate (readTime defaultTimeLocale "%FT%TZ" "2006-02-14T23:55:59Z"))
-                                                          , ("name",SearchStr "iPod & iPod Mini USB 2.0 Cable")
-                                                          , ("popularity",SearchInt 1)
-                                                          , ("price",SearchFloat 11.5)
-                                                          , ("weight",SearchFloat 2.0)
-                                                          ]
-                                                        ]
+-- | The xml to add the above documents to a Solr index
+addXml1 = "<add>\
+\<doc>\
+  \<field name=\"cat\">electronics</field>\
+  \<field name=\"cat\">connector</field>\
+  \<field name=\"id\">F8V7067-APL-KIT</field>\
+  \<field name=\"inStock\">false</field>\
+  \<field name=\"manu\">Belkin</field>\
+  \<field name=\"manufacturedate_dt\">2005-08-01T16:30:25Z</field>\
+  \<field name=\"name\">Belkin Mobile Power Cord for iPod w/ Dock</field>\
+  \<field name=\"popularity\">1</field>\
+  \<field name=\"price\">19.95</field>\
+  \<field name=\"weight\">4</field>\
+\</doc>\
+\<doc>\
+  \<field name=\"cat\">electronics</field>\
+  \<field name=\"cat\">connector</field>\
+  \<field name=\"id\">IW-02</field>\
+  \<field name=\"inStock\">false</field>\
+  \<field name=\"manu\">Belkin</field>\
+  \<field name=\"manufacturedate_dt\">2006-02-14T23:55:59Z</field>\
+  \<field name=\"name\">iPod &amp; iPod Mini USB 2.0 Cable</field>\
+  \<field name=\"popularity\">1</field>\
+  \<field name=\"price\">11.50</field>\
+  \<field name=\"weight\">2</field>\
+\</doc>\
+\</add>"
+
+-- * Test parseSolrResult
+resultTest1 = case parseSolrResult responseXml1 of
+    Just result -> result
+
+test_parseSolrResult_docs1 = resultDocs resultTest1 @?= docs1
 
 test_parseSolrResult_count1 = resultCount resultTest1 @?= 2
 
@@ -123,6 +164,9 @@ test_parseSolrResult_facet1 = resultFacets resultTest1 @?= [ ( ValueFacet "manu"
 test_parseSolrResult_refinements1 = resultRefinements resultTest1 @?= []
 
 -- * Test mkQueryRequest
+
+-- * Test mkAddRequest
+test_mkAddRequest_testAdd = rqBody (mkAddRequest solrInstance docs1) @?= addXml1
 
 -- * Test mkUpdateRequest
 
