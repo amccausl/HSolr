@@ -126,6 +126,7 @@ addXml1 = "<add>\
 \<doc>\
   \<field name=\"cat\">electronics</field>\
   \<field name=\"cat\">connector</field>\
+  \<field name=\"features\">car power adapter, white</field>\
   \<field name=\"id\">F8V7067-APL-KIT</field>\
   \<field name=\"inStock\">false</field>\
   \<field name=\"manu\">Belkin</field>\
@@ -138,6 +139,7 @@ addXml1 = "<add>\
 \<doc>\
   \<field name=\"cat\">electronics</field>\
   \<field name=\"cat\">connector</field>\
+  \<field name=\"features\">car power adapter for iPod, white</field>\
   \<field name=\"id\">IW-02</field>\
   \<field name=\"inStock\">false</field>\
   \<field name=\"manu\">Belkin</field>\

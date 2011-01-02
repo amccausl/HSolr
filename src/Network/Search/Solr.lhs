@@ -10,8 +10,8 @@
 module Network.Search.Solr
        ( SolrInstance(..)
        , query
---       , add
---       , update
+       , add
+       , update
 --       , deleteByQuery
        , deleteByID
        , commit
@@ -58,13 +58,13 @@ instance Searcher SolrInstance where
 implode :: [a] -> [[a]] -> [a]
 implode glue = concat . intersperse glue
 
--- TODO: copy working versions from tests
---add :: SolrInstance -> [SearchDoc] -> IO (String)
---add solr docs = sendUpdateRequest solr addXml
---  where addXml = runX (xshow (constA docs >>> (arrL id >>> mkDocs) >. wrapInTag "add"))
+-- | Add an array of a searchable type to the Solr instance
+add :: (Searchable s) => SolrInstance -> [s] -> IO (String)
+add solr docs = sendUpdateRequest solr request
+  where request = mkAddRequest solr docs
 
---update :: SolrInstance -> [SearchDoc] -> IO (String)
---update = add
+update :: (Searchable s) => SolrInstance -> [s] -> IO (String)
+update = add
 
 --deleteByQuery :: SolrInstance a -> [QueryParameter] -> IO (String)
 --deleteByQuery solr q =
@@ -217,8 +217,10 @@ mkUpdateRequest solr msg = Request { rqURI = updateURI solr :: URI
 
 mkAddRequest :: (Searchable s) => SolrInstance -> [s] -> Request_String
 mkAddRequest solr docs = mkUpdateRequest solr xml
-  where xml = concat (runLA (xshow mkAddDocs) (map (toSearchDoc) docs))
---mkAddRequest solr docs = runLA (xshow mkAddDocs) docs
+  where xml = concat (runLA (xshow mkAddDocs) (map (preprocessDoc . toSearchDoc) docs))
+        preprocessDoc [] = []
+        preprocessDoc ((fName, SearchArr a):rest) = (map (\x -> (fName, x)) a) ++ preprocessDoc rest
+        preprocessDoc (v:rest) = [v] ++ preprocessDoc rest
 
 wrapInTag tag = arr (NTree (XTag (mkName tag) []))
 
@@ -235,12 +237,13 @@ mkSearchData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper
 
 toString :: SearchData -> String
 toString (SearchInt v) = show v
+-- TODO: remove trailing zeros
 toString (SearchFloat v) = show v
-toString (SearchBool v) = show v
+toString (SearchBool True) = "true"
+toString (SearchBool False) = "false"
 toString (SearchStr v) = v
+-- Use standard solr date format
 toString (SearchDate v) = show v
--- TODO: check search arrays
-toString (SearchArr vs) = concat (map (toString) vs)
 
 sendUpdateRequest :: SolrInstance -> Request_String -> IO (String)
 sendUpdateRequest solr req = do
