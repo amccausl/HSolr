@@ -41,6 +41,7 @@ tests = [ testGroup "Solr:parseSolrResult"  [ testCase "docs1" test_parseSolrRes
                                             , testCase "facetValue" test_toQueryMap_facetValue
                                             , testCase "facetRange" test_toQueryMap_facetRange
                                             , testCase "multipleFacets" test_toQueryMap_multipleFacets
+                                            , testCase "facetStatValue" test_toQueryMap_facetStatValue
                                             ]
         ]
 
@@ -196,11 +197,13 @@ test_toQueryMap_paging1 = toQueryMap Map.empty [pagingParam1] @?= Map.fromList [
 -- merge 2 paging parameters
 test_toQueryMap_paging2 = toQueryMap Map.empty [pagingParam1, pagingParam2] @?= Map.fromList [("start", ["0"]), ("rows", ["10"])]
 
-facetParam1 = FacetFilter (ValueFacet "section" (SearchInt 0))
-facetParam2 = FacetFilter (RangeFacet "popularity" (Range (BoundaryBelow (SearchInt 10)) (BoundaryAboveAll)))
-test_toQueryMap_facetValue = toQueryMap Map.empty [facetParam1] @?= Map.fromList [("fq", ["section:0"])]
-test_toQueryMap_facetRange = toQueryMap Map.empty [facetParam2] @?= Map.fromList [("fq", ["popularity:[10 TO *]"])]
-test_toQueryMap_multipleFacets = toQueryMap Map.empty [facetParam1, facetParam2] @?= Map.fromList [("fq", ["popularity:[10 TO *]", "section:0"])]
+facetParam1 = ValueFacet "section" (SearchInt 0)
+facetParam2 = RangeFacet "popularity" (Range (BoundaryBelow (SearchInt 10)) (BoundaryAboveAll))
+test_toQueryMap_facetValue = toQueryMap Map.empty [FacetFilter facetParam1] @?= Map.fromList [("fq", ["section:0"])]
+test_toQueryMap_facetRange = toQueryMap Map.empty [FacetFilter facetParam2] @?= Map.fromList [("fq", ["popularity:[10 TO *]"])]
+test_toQueryMap_multipleFacets = toQueryMap Map.empty [FacetFilter facetParam1, FacetFilter facetParam2] @?= Map.fromList [("fq", ["popularity:[10 TO *]", "section:0"])]
+
+test_toQueryMap_facetStatValue = toQueryMap Map.empty [FacetFieldStat "cat"] @?= Map.fromList [("facet.field", ["cat"]), ("facet", ["true"])]
 
 -- ...&q=*:*&facet=true&facet.field=cat
 -- ...&q=*:*&facet=true&facet.field=cat&facet.field=inStock

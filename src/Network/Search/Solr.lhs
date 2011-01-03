@@ -100,20 +100,20 @@ toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [impl
 toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
 toQueryMap m ((PagingFilter rows page):rest) = toQueryMap (Map.union (Map.fromList [("rows", [show rows]), ("start", [show (rows * (page - 1))])]) m) rest
 toQueryMap m ((FacetFilter facet):rest) = toQueryMap (Map.insertWith (++) "fq" [encodeFacet facet] m) rest
-  where encodeFacet (ValueFacet fName fValue) = fName ++ ":" ++ encodeData fValue
-        encodeFacet (RangeFacet fName fRange) = fName ++ ":" ++ encodeRange fRange
-        encodeRange (Range lb ub) = encodeLowerBoundary lb ++ " TO " ++ encodeUpperBoundary ub
-        encodeLowerBoundary (BoundaryAbove bound) = "(" ++ encodeData bound
-        encodeLowerBoundary (BoundaryBelow bound) = "[" ++ encodeData bound
-        encodeLowerBoundary _ = "[*"
-        encodeUpperBoundary (BoundaryAbove bound) = encodeData bound ++ "]"
-        encodeUpperBoundary (BoundaryBelow bound) = encodeData bound ++ ")"
-        encodeUpperBoundary _ = "*]"
-        encodeData (SearchInt v) = show v
-        encodeData (SearchFloat v) = show v
-        encodeData (SearchBool True) = "true"
-        encodeData (SearchBool False) = "false"
-        encodeData (SearchStr v) = filter (\c -> not (elem c "][:")) v
+toQueryMap m ((FacetQueryStat facet):rest) = toQueryMap (Map.insertWith (++) "facet.query" [encodeFacet facet] (Map.insert "facet" ["true"] m)) rest
+toQueryMap m ((FacetFieldStat field):rest) = toQueryMap (Map.insertWith (++) "facet.field" [field] (Map.insert "facet" ["true"] m)) rest
+
+encodeFacet (ValueFacet fName fValue) = fName ++ ":" ++ encodeData fValue
+encodeFacet (RangeFacet fName fRange) = fName ++ ":" ++ encodeRange fRange
+encodeRange (Range lb ub) = encodeLowerBoundary lb ++ " TO " ++ encodeUpperBoundary ub
+encodeLowerBoundary (BoundaryAbove bound) = "(" ++ encodeData bound
+encodeLowerBoundary (BoundaryBelow bound) = "[" ++ encodeData bound
+encodeLowerBoundary _ = "[*"
+encodeUpperBoundary (BoundaryAbove bound) = encodeData bound ++ "]"
+encodeUpperBoundary (BoundaryBelow bound) = encodeData bound ++ ")"
+encodeUpperBoundary _ = "*]"
+encodeData (SearchStr v) = filter (\c -> not (elem c "][:")) v
+encodeData searchData = toString searchData
 
 -- | Create an HTTP request from a Query Map
 mkQueryRequest :: SolrInstance -> Map.Map String [String] -> Request_String

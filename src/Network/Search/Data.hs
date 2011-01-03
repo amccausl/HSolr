@@ -44,7 +44,9 @@ data SearchParameter = SortParameter [(FieldName, SortOrder)]
                      | PagingFilter Int Int -- perPage, numPage
                      | FacetFilter SearchFacet
                      | Keyword String
-                     | FacetStat SearchFacet
+                     | FacetQueryStat SearchFacet -- 
+                     | FacetFieldStat FieldName
+--                     | FacetDateStat FieldName -- TODO: include 
   deriving (Eq, Show)
 
 data SearchFacet = RangeFacet FieldName (Range FieldValue)
