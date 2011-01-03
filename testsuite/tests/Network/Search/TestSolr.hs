@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 import Data.Char
 import Data.List
 import Data.Time
+import Data.Ranged
 import Locale
 import Network.HTTP (Request(..))
 
@@ -37,6 +38,9 @@ tests = [ testGroup "Solr:parseSolrResult"  [ testCase "docs1" test_parseSolrRes
                                             , testCase "sort3" test_toQueryMap_sort3
                                             , testCase "paging1" test_toQueryMap_paging1
                                             , testCase "paging2" test_toQueryMap_paging2
+                                            , testCase "facetValue" test_toQueryMap_facetValue
+                                            , testCase "facetRange" test_toQueryMap_facetRange
+                                            , testCase "multipleFacets" test_toQueryMap_multipleFacets
                                             ]
         ]
 
@@ -187,8 +191,16 @@ test_toQueryMap_sort3 = toQueryMap Map.empty [SortParameter [("price", Desc), ("
 
 pagingParam1 = PagingFilter 8 2
 pagingParam2 = PagingFilter 10 1
+-- encode basic paging parameter
 test_toQueryMap_paging1 = toQueryMap Map.empty [pagingParam1] @?= Map.fromList [("start", ["8"]), ("rows", ["8"])]
+-- merge 2 paging parameters
 test_toQueryMap_paging2 = toQueryMap Map.empty [pagingParam1, pagingParam2] @?= Map.fromList [("start", ["0"]), ("rows", ["10"])]
+
+facetParam1 = FacetFilter (ValueFacet "section" (SearchInt 0))
+facetParam2 = FacetFilter (RangeFacet "popularity" (Range (BoundaryBelow (SearchInt 10)) (BoundaryAboveAll)))
+test_toQueryMap_facetValue = toQueryMap Map.empty [facetParam1] @?= Map.fromList [("fq", ["section:0"])]
+test_toQueryMap_facetRange = toQueryMap Map.empty [facetParam2] @?= Map.fromList [("fq", ["popularity:[10 TO *]"])]
+test_toQueryMap_multipleFacets = toQueryMap Map.empty [facetParam1, facetParam2] @?= Map.fromList [("fq", ["popularity:[10 TO *]", "section:0"])]
 
 -- ...&q=*:*&facet=true&facet.field=cat
 -- ...&q=*:*&facet=true&facet.field=cat&facet.field=inStock
