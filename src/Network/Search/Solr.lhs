@@ -9,7 +9,7 @@
 
 module Network.Search.Solr
        ( SolrInstance(..)
-       , query
+       , query, queryD
        , add
        , update
 --       , deleteByQuery
@@ -36,28 +36,54 @@ import List (intersperse)
 -- Import Networking modules
 import Network.URI (URI(..), URIAuth(..), escapeURIString, isUnescapedInURI)
 import Network.TCP as TCP
-import Network.HTTP
+import Network.HTTP (sendHTTP, Request_String, Response_String, Request(..), RequestMethod(..), Header(..), HeaderName(..), getResponseBody)
 
 -- Import XML manipulation
 import Text.XML.HXT.Core
 import Data.Tree.NTree.TypeDefs (NTree(..))
 
--- Constants
-requestSize = 100  -- Do operations in groups of 100
+-- * Constants and data types
 
--- Define datatype to represent a Solr server
+-- | Define the request size for lazy load operations
+requestSize = 100
+
+-- | Define datatype to represent a Solr server
 data SolrInstance = SolrInstance { solrHost :: String
                                  , solrPort :: Int
                                  }
 
+-- * Main API functions
+
+-- | Query the Solr instance
 instance Searcher SolrInstance where
   query solr q = do
-                 responseStr <- sendQueryRequest solr (mkQueryRequest solr (toQueryMap Map.empty q))
+                 response <- sendQueryRequest solr request
+                 responseBody <- getResponseBody response
+                 let responseStr = (dropWhile (== '\n') . dropWhile (/= '\n')) responseBody
                  return (parseSolrResult responseStr)
+    where request = mkQueryRequest solr (toQueryMap Map.empty q)
 
--- | Copy of implode function from PHP
-implode :: [a] -> [[a]] -> [a]
-implode glue = concat . intersperse glue
+queryD :: SolrInstance -> SearchQuery -> IO(Maybe SearchResult)
+queryD solr q = do
+                print (request)
+                response <- sendQueryRequest solr request
+                print response
+                responseBody <- getResponseBody response
+                print responseBody
+                let responseStr = (dropWhile (== '\n') . dropWhile (/= '\n')) responseBody
+                print responseStr
+                let xml = head (runLA xread responseStr)
+                print xml
+                let docs = runLA (getChildren >>> isElem >>> hasName "result" >>> getChildren >>> isElem >>> hasName "doc" >>> processDoc) xml
+                print docs
+                let count = runLA ((getChildren >>> isElem >>> hasName "result") >>> (getAttrValue "numFound" >>> arr (read :: String -> Integer))) xml
+                print count
+                let count2 = runLA (xread >>> (getChildren >>> isElem >>> hasName "result") >>> (getAttrValue "numFound" >>> arr (read :: String -> Integer))) responseStr
+                print count2
+                let facets = runLA (getChildren >>> isElem >>> hasName "lst" >>> getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml
+                print facets
+                return (parseSolrResult responseStr)
+  where request = mkQueryRequest solr (toQueryMap Map.empty q)
 
 -- | Add an array of a searchable type to the Solr instance
 add :: (Searchable s) => SolrInstance -> [s] -> IO (String)
@@ -84,24 +110,28 @@ optimize solr = sendUpdateRequest solr (mkUpdateRequest solr "<optimize/>")
 solrAuth :: SolrInstance -> Maybe URIAuth
 solrAuth solr = Just (URIAuth "" host port)
   where host = solrHost solr
-        port = show (solrPort solr)
+        port = ":" ++ show (solrPort solr)
 
--- * Functions to query a SolrInstance for documents
+-- * Utility methods
 
--- | Create a URI for a query of the SolrInstance with the given query string
-queryURI :: SolrInstance -> String -> URI
-queryURI solr query = URI "http:" (solrAuth solr) "/solr/select" query ""
+-- | Copy of implode function from PHP
+implode :: [a] -> [[a]] -> [a]
+implode glue = concat . intersperse glue
 
--- | Create a Map to hold the parameters for a search query
-toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [String]
-toQueryMap m [] = m
-toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [implode "," (map (encodeSort) fields)] m) rest
-  where encodeSort (field, order) = field ++ " " ++ ((\(o:rest) -> (toLower o) : rest) (show order))
-toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
-toQueryMap m ((PagingFilter rows page):rest) = toQueryMap (Map.union (Map.fromList [("rows", [show rows]), ("start", [show (rows * (page - 1))])]) m) rest
-toQueryMap m ((FacetFilter facet):rest) = toQueryMap (Map.insertWith (++) "fq" [encodeFacet facet] m) rest
-toQueryMap m ((FacetQueryStat facet):rest) = toQueryMap (Map.insertWith (++) "facet.query" [encodeFacet facet] (Map.insert "facet" ["true"] m)) rest
-toQueryMap m ((FacetFieldStat field):rest) = toQueryMap (Map.insertWith (++) "facet.field" [field] (Map.insert "facet" ["true"] m)) rest
+toString :: SearchData -> String
+toString (SearchInt v) = show v
+toString (SearchFloat v) = (reverse . (dropWhile (\c -> c == '0' || c == '.')) . reverse . show) v
+toString (SearchBool True) = "true"
+toString (SearchBool False) = "false"
+toString (SearchStr v) = xmlEncode v
+  where xmlEncode ('<':rest) = "&lt;" ++ xmlEncode rest
+        xmlEncode ('>':rest) = "&gt;" ++ xmlEncode rest
+        xmlEncode ('&':rest) = "&amp;" ++ xmlEncode rest
+        xmlEncode ('\'':rest) = "&apos;" ++ xmlEncode rest
+        xmlEncode ('"':rest) = "&quot;" ++ xmlEncode rest
+        xmlEncode (c:rest) = [c] ++ xmlEncode rest
+        xmlEncode [] = []
+toString (SearchDate v) = formatTime defaultTimeLocale "%FT%TZ" v
 
 encodeFacet (ValueFacet fName fValue) = fName ++ ":" ++ encodeData fValue
 encodeFacet (RangeFacet fName fRange) = fName ++ ":" ++ encodeRange fRange
@@ -114,6 +144,23 @@ encodeUpperBoundary (BoundaryBelow bound) = encodeData bound ++ ")"
 encodeUpperBoundary _ = "*]"
 encodeData (SearchStr v) = filter (\c -> not (elem c "][:")) v
 encodeData searchData = toString searchData
+
+-- * Functions to query a SolrInstance for documents
+
+-- | Create a URI for a query of the SolrInstance with the given query string
+queryURI :: SolrInstance -> String -> URI
+queryURI solr query = URI "http:" (solrAuth solr) "/solr/select" ("?" ++ query) ""
+
+-- | Create a Map to hold the parameters for a search query
+toQueryMap :: Map.Map String [String] -> [SearchParameter] -> Map.Map String [String]
+toQueryMap m [] = m
+toQueryMap m ((SortParameter fields):rest) = toQueryMap (Map.insert "sort" [implode "," (map (encodeSort) fields)] m) rest
+  where encodeSort (field, order) = field ++ " " ++ ((\(o:rest) -> (toLower o) : rest) (show order))
+toQueryMap m ((Keyword k):rest) = toQueryMap (Map.insert "q" [k] m) rest
+toQueryMap m ((PagingFilter rows page):rest) = toQueryMap (Map.union (Map.fromList [("rows", [show rows]), ("start", [show (rows * (page - 1))])]) m) rest
+toQueryMap m ((FacetFilter facet):rest) = toQueryMap (Map.insertWith (++) "fq" [encodeFacet facet] m) rest
+toQueryMap m ((FacetQueryStat facet):rest) = toQueryMap (Map.insertWith (++) "facet.query" [encodeFacet facet] (Map.insert "facet" ["true"] m)) rest
+toQueryMap m ((FacetFieldStat field):rest) = toQueryMap (Map.insertWith (++) "facet.field" [field] (Map.insert "facet" ["true"] m)) rest
 
 -- | Create an HTTP request from a Query Map
 mkQueryRequest :: SolrInstance -> Map.Map String [String] -> Request_String
@@ -130,12 +177,12 @@ toQueryStr queryMap = implode "&" (map (\(k, v) -> k ++ "=" ++ (escapeURIString 
   where f k vs acc = acc ++ (map (\v -> (k, v)) vs)
 
 -- | Send a Request to the SolrInstance
-sendQueryRequest :: SolrInstance -> Request_String -> IO (String)
+--sendQueryRequest :: SolrInstance -> Request_String -> IO (Response_String)
 sendQueryRequest solr req = do
                             conn <- TCP.openStream (solrHost solr) (solrPort solr)
-                            rawResponse <- sendHTTP conn req
-                            body <- getResponseBody rawResponse
-                            return body
+                            sendHTTP conn req
+                            --body <- getResponseBody rawResponse
+                            --return body
                             --case rawResponse of
                             --   Right response -> return response
                             --   Left error -> return error
@@ -143,14 +190,15 @@ sendQueryRequest solr req = do
 -- | Parse the Solr XML query result to the proper datatypes (TODO: add proper error handling)
 parseSolrResult :: String               -- ^ An XML string response from a Solr search query
                 -> Maybe SearchResult   -- ^ The SearchResult type represented by the XML if the parsing was successful
-parseSolrResult responseStr = Just SearchResult { resultDocs = runLA (getChildren >>> isElem >>> hasName "doc" >>> processDoc) resultTag :: [SearchDoc]
-                                                , resultCount = head (runLA (getAttrValue "numFound" >>> arr read) resultTag) :: Integer
-                                                , resultFacets = runLA (getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml :: [(SearchFacet, Integer)]
-                                                , resultRefinements = [] :: [SearchParameter]
+parseSolrResult responseStr = Just SearchResult { resultDocs = docs                 :: [SearchDoc]
+                                                , resultCount = head (count ++ [0]) :: Integer
+                                                , resultFacets = facets             :: [(SearchFacet, Integer)]
+                                                , resultRefinements = []            :: [SearchParameter]
                                                 }
   where xml = head (runLA xread responseStr)
-        resultTag = head (runLA (getChildren >>> isElem >>> hasName "result") xml)
-        metaTag = head (runLA (getChildren >>> isElem >>> hasName "lst") xml)
+        docs = runLA (getChildren >>> isElem >>> hasName "result" >>> getChildren >>> isElem >>> hasName "doc" >>> processDoc) xml :: [SearchDoc]
+        count = runLA ((getChildren >>> isElem >>> hasName "result") >>> (getAttrValue "numFound" >>> arr read)) xml
+        facets = runLA (getChildren >>> isElem >>> hasName "lst" >>> getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml
 
 --parseSolrResult responseStr = head (runLA (xread >>> getSearchResult) (dropWhile (/= '\n') responseStr))
 
@@ -251,21 +299,6 @@ mkSearchData :: ArrowXml a => a (String, SearchData) XmlTree
 mkSearchData = mkelem "field" [attr "name" (arr nameHelper)] [arr solrDataHelper]
   where nameHelper (name, _) = NTree (XText name) []
         solrDataHelper (_, solrData) = NTree (XText (toString solrData)) []
-
-toString :: SearchData -> String
-toString (SearchInt v) = show v
-toString (SearchFloat v) = (reverse . (dropWhile (\c -> c == '0' || c == '.')) . reverse . show) v
-toString (SearchBool True) = "true"
-toString (SearchBool False) = "false"
-toString (SearchStr v) = xmlEncode v
-  where xmlEncode ('<':rest) = "&lt;" ++ xmlEncode rest
-        xmlEncode ('>':rest) = "&gt;" ++ xmlEncode rest
-        xmlEncode ('&':rest) = "&amp;" ++ xmlEncode rest
-        xmlEncode ('\'':rest) = "&apos;" ++ xmlEncode rest
-        xmlEncode ('"':rest) = "&quot;" ++ xmlEncode rest
-        xmlEncode (c:rest) = [c] ++ xmlEncode rest
-        xmlEncode [] = []
-toString (SearchDate v) = formatTime defaultTimeLocale "%FT%TZ" v
 
 sendUpdateRequest :: SolrInstance -> Request_String -> IO (String)
 sendUpdateRequest solr req = do
