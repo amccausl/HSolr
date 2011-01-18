@@ -29,11 +29,13 @@ import Network.Search.Data
 import Data.Time
 import Locale
 import Data.Ranged
+import Data.Maybe
 import qualified Data.Map as Map
 import Data.Char (toLower)
 import List (intersperse)
 
 -- Import Networking modules
+import Network.Stream (Result(..), ConnError(..))
 import Network.URI (URI(..), URIAuth(..), escapeURIString, isUnescapedInURI)
 import Network.TCP as TCP
 import Network.HTTP (sendHTTP, Request_String, Response_String, Request(..), RequestMethod(..), Header(..), HeaderName(..), getResponseBody)
@@ -55,6 +57,7 @@ data SolrInstance = SolrInstance { solrHost :: String
 -- * Main API functions
 
 -- | Query the Solr instance
+-- TODO: response code must be 200 to send to parseSolrResult
 instance Searcher SolrInstance where
   query solr q = do
                  response <- sendQueryRequest solr request
@@ -80,8 +83,8 @@ queryD solr q = do
                 print count
                 let count2 = runLA (xread >>> (getChildren >>> isElem >>> hasName "result") >>> (getAttrValue "numFound" >>> arr (read :: String -> Integer))) responseStr
                 print count2
-                let facets = runLA (getChildren >>> isElem >>> hasName "lst" >>> getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml
-                print facets
+--                let facets = runLA (getChildren >>> isElem >>> hasName "lst" >>> getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml
+--                print facets
                 return (parseSolrResult responseStr)
   where request = mkQueryRequest solr (toQueryMap Map.empty q)
 
@@ -177,7 +180,7 @@ toQueryStr queryMap = implode "&" (map (\(k, v) -> k ++ "=" ++ (escapeURIString 
   where f k vs acc = acc ++ (map (\v -> (k, v)) vs)
 
 -- | Send a Request to the SolrInstance
---sendQueryRequest :: SolrInstance -> Request_String -> IO (Response_String)
+sendQueryRequest :: SolrInstance -> Request_String -> IO (Result Response_String)
 sendQueryRequest solr req = do
                             conn <- TCP.openStream (solrHost solr) (solrPort solr)
                             sendHTTP conn req
@@ -187,32 +190,25 @@ sendQueryRequest solr req = do
                             --   Right response -> return response
                             --   Left error -> return error
 
--- | Parse the Solr XML query result to the proper datatypes (TODO: add proper error handling)
-parseSolrResult :: String               -- ^ An XML string response from a Solr search query
-                -> Maybe SearchResult   -- ^ The SearchResult type represented by the XML if the parsing was successful
-parseSolrResult responseStr = Just SearchResult { resultDocs = docs                 :: [SearchDoc]
-                                                , resultCount = head (count ++ [0]) :: Integer
-                                                , resultFacets = facets             :: [(SearchFacet, Integer)]
-                                                , resultRefinements = []            :: [SearchParameter]
-                                                }
-  where xml = head (runLA xread responseStr)
-        docs = runLA (getChildren >>> isElem >>> hasName "result" >>> getChildren >>> isElem >>> hasName "doc" >>> processDoc) xml :: [SearchDoc]
-        count = runLA ((getChildren >>> isElem >>> hasName "result") >>> (getAttrValue "numFound" >>> arr read)) xml
-        facets = runLA (getChildren >>> isElem >>> hasName "lst" >>> getChildren >>> hasAttrValue "name" (== "facet_counts") >>> getFacets) xml
+parseSolrResult responseStr = head (runLA ((xread >>> getSearchResult >>> arr Just) `orElse` constA (Nothing)) responseStr)
 
---parseSolrResult responseStr = head (runLA (xread >>> getSearchResult) (dropWhile (/= '\n') responseStr))
-
---getSearchResult :: (ArrowXml a) => a XmlTree SearchResult
---getSearchResult = proc x -> do
---                       d <- (getDocs >. id) -< x
---                       c <- getCount -< x
---                       f <- getFacets -< x
---                       r <- getRefinements -< x
---                       returnA -< SearchResult { resultDocs = d
---                                               , resultCount = c
---                                               , resultFacets = f
---                                               , resultRefinements = r
---                                               }
+-- | Parse the Solr XML query result to the proper datatypes
+parseSolrResult :: String                   -- ^ An XML string response from a Solr search query
+                -> Maybe SearchResult       -- ^ The SearchResult type represented by the XML if the parsing was successful
+getSearchResult :: (ArrowXml a) => a XmlTree SearchResult
+getSearchResult = proc x -> do
+                 result  <- hasName "result" <<< isElem <<< getChildren            -< x
+                 docs    <- (getDocs >>> processDoc) >. id                         -< result
+                 count   <- arr read <<< getAttrValue "numFound"                   -< result
+                 facets  <- ((getFacets >>> parseFacets) >. id) `orElse` constA [] -< x
+                 refine  <- getRefinements                                         -< x
+                 returnA -< SearchResult { resultDocs = docs
+                                         , resultCount = count
+                                         , resultFacets = facets
+                                         , resultRefinements = refine
+                                         }
+  where getDocs = getChildren >>> isElem >>> hasName "doc"
+        getFacets = getChildren >>> hasAttrValue "name" (== "facet_counts")
 
 findResponse = getChildren >>> isElem >>> hasName "response"
 
@@ -244,10 +240,10 @@ getCount :: (ArrowXml a) => a XmlTree Integer
 getCount = getChildren >>> isElem >>> hasName "result" >>> getAttrValue "numFound" >>> arr read
 
 -- | Process the top level "facet_counts" lst xml element into the "facet_queries", "facet_fields", and "facet_dates" elements
-getFacets :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
-getFacets = getChildren >>> ( ( getFacetQueries )
-                          <+> ( facetType "facet_fields" >>> getFacetFields )
-                          <+> ( getFacetDates ) )
+parseFacets :: (ArrowXml a) => a XmlTree (SearchFacet, Integer)
+parseFacets = getChildren >>> ( ( getFacetQueries )
+                            <+> ( facetType "facet_fields" >>> getFacetFields )
+                            <+> ( getFacetDates ) )
   where facetType name = isElem >>> hasAttrValue "name" (== name)
 
 -- | Process "facet_queries" lst element (TODO)
